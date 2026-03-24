@@ -1,4 +1,4 @@
-import type { CheckMetadata, CreateBordroRequest, Scanner } from '../types'
+import type { CheckMetadata, CreateBordroRequest, ScanColorMode, Scanner } from '../types'
 
 const BASE_URL = import.meta.env.VITE_BRANCH_ADDR ?? 'http://127.0.0.1:8080'
 
@@ -13,14 +13,19 @@ const GRPC_WEB_DATA_FRAME_FLAG = 0x00
 const GRPC_WEB_TRAILER_FRAME_FLAG = 0x80
 const GRPC_WEB_FRAME_HEADER_LEN = 5
 
-const FRONT_IMAGE_FILE_NAME = 'front.bin'
-const BACK_IMAGE_FILE_NAME = 'back.bin'
+const FRONT_IMAGE_FILE_NAME = 'front.png'
+const BACK_IMAGE_FILE_NAME = 'back.png'
+const FRONT_IMAGE_LEGACY_FILE_NAME = 'front.bin'
+const BACK_IMAGE_LEGACY_FILE_NAME = 'back.bin'
+const CHECK_METADATA_FILE_NAME = 'metadata.json'
 
 const LIST_SCANNERS_PATH = '/daemon.scan.ScanService/ListScanners'
 const RESERVE_SCANNER_PATH = '/daemon.scan.ScanService/ReserveScanner'
 const RELEASE_SCANNER_PATH = '/daemon.scan.ScanService/ReleaseScanner'
 const CREATE_BORDRO_PATH = '/daemon.check.CheckService/CreateBordro'
 const SCAN_CHECK_PATH = '/daemon.check.CheckService/ScanCheck'
+const STORAGE_LIST_OBJECTS_PATH = '/daemon.storage.StorageService/ListObjects'
+const STORAGE_GET_OBJECT_PATH = '/daemon.storage.StorageService/GetObject'
 const HEALTH_CHECK_PATH = '/grpc.health.v1.Health/Check'
 
 type ProtoCheckMetadata = {
@@ -29,9 +34,54 @@ type ProtoCheckMetadata = {
   micr_data: string
   qr_data: string
   object_path: string
+  page_count: number
+  micr_qr_match: boolean
+  duplex: boolean
+  dpi: number
+  color_mode: number
 }
 
 type PcDaemonStatus = 'available' | 'reserved' | 'unavailable'
+
+export type StorageObjectPaths = {
+  front_path: string | null
+  front_is_png: boolean
+  back_path: string | null
+  back_is_png: boolean
+  metadata_path: string | null
+}
+
+function mapScanColorModeToProto(mode: ScanColorMode): number {
+  if (mode === 'COLOR') {
+    return 1
+  }
+
+  if (mode === 'GRAYSCALE') {
+    return 2
+  }
+
+  if (mode === 'BLACK_AND_WHITE') {
+    return 3
+  }
+
+  return 0
+}
+
+function mapProtoScanColorModeToUi(mode: number): ScanColorMode {
+  if (mode === 1) {
+    return 'COLOR'
+  }
+
+  if (mode === 2) {
+    return 'GRAYSCALE'
+  }
+
+  if (mode === 3) {
+    return 'BLACK_AND_WHITE'
+  }
+
+  return 'UNSPECIFIED'
+}
 
 function encodeUtf8(value: string): Uint8Array {
   return new TextEncoder().encode(value)
@@ -179,15 +229,15 @@ function frameGrpcWebMessage(message: Uint8Array): Uint8Array {
   return framed
 }
 
-type ParsedGrpcWebResponse = {
-  message: Uint8Array | null
+type ParsedGrpcWebFrames = {
+  messages: Uint8Array[]
   trailerStatus: string | null
   trailerMessage: string | null
 }
 
-function parseGrpcWebResponse(payload: Uint8Array): ParsedGrpcWebResponse {
+function parseGrpcWebFrames(payload: Uint8Array): ParsedGrpcWebFrames {
   let offset = 0
-  let message: Uint8Array | null = null
+  const messages: Uint8Array[] = []
   let trailerStatus: string | null = null
   let trailerMessage: string | null = null
 
@@ -227,8 +277,8 @@ function parseGrpcWebResponse(payload: Uint8Array): ParsedGrpcWebResponse {
           trailerMessage = decodeGrpcMessage(rawValue)
         }
       }
-    } else if (message === null) {
-      message = framePayload
+    } else {
+      messages.push(framePayload)
     }
 
     offset = frameEnd
@@ -239,7 +289,7 @@ function parseGrpcWebResponse(payload: Uint8Array): ParsedGrpcWebResponse {
   }
 
   return {
-    message,
+    messages,
     trailerStatus,
     trailerMessage,
   }
@@ -393,6 +443,11 @@ function parseCheckMetadata(payload: Uint8Array): ProtoCheckMetadata {
     micr_data: '',
     qr_data: '',
     object_path: '',
+    page_count: 0,
+    micr_qr_match: false,
+    duplex: false,
+    dpi: 0,
+    color_mode: 0,
   }
 
   while (offset < payload.length) {
@@ -402,27 +457,62 @@ function parseCheckMetadata(payload: Uint8Array): ProtoCheckMetadata {
     const fieldNumber = tagInfo.value >>> 3
     const wireType = tagInfo.value & 0x07
 
-    if (wireType !== 2) {
-      offset = skipUnknownField(payload, offset, wireType)
+    if (wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      const decoded = decodeUtf8(value.value)
+
+      if (fieldNumber === 1) {
+        metadata.bordro_id = decoded
+      } else if (fieldNumber === 2) {
+        metadata.check_no = decoded
+      } else if (fieldNumber === 3) {
+        metadata.micr_data = decoded
+      } else if (fieldNumber === 4) {
+        metadata.qr_data = decoded
+      } else if (fieldNumber === 5) {
+        metadata.object_path = decoded
+      }
+
+      offset = value.offset
       continue
     }
 
-    const value = readLengthDelimited(payload, offset)
-    const decoded = decodeUtf8(value.value)
-
-    if (fieldNumber === 1) {
-      metadata.bordro_id = decoded
-    } else if (fieldNumber === 2) {
-      metadata.check_no = decoded
-    } else if (fieldNumber === 3) {
-      metadata.micr_data = decoded
-    } else if (fieldNumber === 4) {
-      metadata.qr_data = decoded
-    } else if (fieldNumber === 5) {
-      metadata.object_path = decoded
+    if (fieldNumber === 6 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.page_count = value.value
+      offset = value.offset
+      continue
     }
 
-    offset = value.offset
+    if (fieldNumber === 7 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.micr_qr_match = value.value !== 0
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 8 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.duplex = value.value !== 0
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 9 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.dpi = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 10 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.color_mode = value.value
+      offset = value.offset
+      continue
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
   }
 
   return metadata
@@ -449,14 +539,6 @@ function parseScanCheckResponse(payload: Uint8Array): ProtoCheckMetadata {
   throw new Error('scanCheck response did not include metadata')
 }
 
-function buildObjectChildPath(objectPath: string, fileName: string): string {
-  if (objectPath.trim().length === 0) {
-    return ''
-  }
-
-  return `${objectPath.replace(/\/+$/u, '')}/${fileName}`
-}
-
 function mapProtoMetadataToUi(
   metadata: ProtoCheckMetadata,
   request: {
@@ -479,16 +561,177 @@ function mapProtoMetadataToUi(
     check_no: checkNo,
     micr: metadata.micr_data,
     qr: metadata.qr_data,
-    front_path: buildObjectChildPath(metadata.object_path, FRONT_IMAGE_FILE_NAME),
-    back_path: buildObjectChildPath(metadata.object_path, BACK_IMAGE_FILE_NAME),
+    page_count: metadata.page_count,
+    micr_qr_match: metadata.micr_qr_match,
+    duplex: metadata.duplex,
+    dpi: metadata.dpi,
+    color_mode: mapProtoScanColorModeToUi(metadata.color_mode),
+    // Front/back object path values are resolved via ListObjects.
+    front_path: '',
+    back_path: '',
   }
 }
 
-async function callGrpcWebUnary(
+function decodeUtf8Strict(value: Uint8Array): string | null {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(value)
+  } catch {
+    return null
+  }
+}
+
+function isLikelyObjectPath(value: string): boolean {
+  const trimmed = value.trim()
+  if (trimmed.length === 0) {
+    return false
+  }
+
+  if (trimmed.includes('\n') || trimmed.includes('\r')) {
+    return false
+  }
+
+  return (
+    trimmed.includes('/') ||
+    trimmed.includes('\\') ||
+    trimmed.endsWith(FRONT_IMAGE_FILE_NAME) ||
+    trimmed.endsWith(BACK_IMAGE_FILE_NAME) ||
+    trimmed.endsWith(FRONT_IMAGE_LEGACY_FILE_NAME) ||
+    trimmed.endsWith(BACK_IMAGE_LEGACY_FILE_NAME) ||
+    trimmed.endsWith(CHECK_METADATA_FILE_NAME)
+  )
+}
+
+function collectLikelyObjectPaths(payload: Uint8Array, depth = 0): string[] {
+  if (depth > 4 || payload.length === 0) {
+    return []
+  }
+
+  const paths: string[] = []
+  let offset = 0
+
+  try {
+    while (offset < payload.length) {
+      const tagInfo = decodeVarint(payload, offset)
+      offset = tagInfo.offset
+
+      const wireType = tagInfo.value & 0x07
+      if (wireType === 2) {
+        const value = readLengthDelimited(payload, offset)
+        const decoded = decodeUtf8Strict(value.value)
+        if (decoded !== null && isLikelyObjectPath(decoded)) {
+          paths.push(decoded.trim())
+        }
+
+        if (value.value.length > 0) {
+          paths.push(...collectLikelyObjectPaths(value.value, depth + 1))
+        }
+
+        offset = value.offset
+        continue
+      }
+
+      offset = skipUnknownField(payload, offset, wireType)
+    }
+  } catch {
+    return paths
+  }
+
+  return paths
+}
+
+function normalizePath(value: string): string {
+  return value.trim().replace(/\\/gu, '/').replace(/\/+$/u, '')
+}
+
+function isPathWithFileName(path: string, fileName: string): boolean {
+  const normalized = normalizePath(path)
+  return normalized === fileName || normalized.endsWith(`/${fileName}`)
+}
+
+function findObjectPathBySuffix(paths: string[], fileName: string): string | null {
+  for (const path of paths) {
+    if (isPathWithFileName(path, fileName)) {
+      return path.trim()
+    }
+  }
+
+  return null
+}
+
+function findPreferredObjectPathBySuffix(
+  paths: string[],
+  preferredFileName: string,
+  fallbackFileName: string,
+): { path: string | null; isPng: boolean } {
+  const preferred = findObjectPathBySuffix(paths, preferredFileName)
+  if (preferred) {
+    return { path: preferred, isPng: true }
+  }
+
+  const fallback = findObjectPathBySuffix(paths, fallbackFileName)
+  if (fallback) {
+    return { path: fallback, isPng: false }
+  }
+
+  return { path: null, isPng: false }
+}
+
+function parseListObjectsResponse(payload: Uint8Array): string[] {
+  const candidates = collectLikelyObjectPaths(payload)
+  const deduped = new Set<string>()
+
+  for (const candidate of candidates) {
+    const trimmed = candidate.trim()
+    if (trimmed.length > 0) {
+      deduped.add(trimmed)
+    }
+  }
+
+  return [...deduped]
+}
+
+function parseGetObjectChunkData(payload: Uint8Array): Uint8Array {
+  let offset = 0
+  let longestField: Uint8Array | null = null
+  let longestNonPathField: Uint8Array | null = null
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const wireType = tagInfo.value & 0x07
+    if (wireType !== 2) {
+      offset = skipUnknownField(payload, offset, wireType)
+      continue
+    }
+
+    const value = readLengthDelimited(payload, offset)
+    if (longestField === null || value.value.length > longestField.length) {
+      longestField = value.value
+    }
+
+    const decoded = decodeUtf8Strict(value.value)
+    if (decoded === null || !isLikelyObjectPath(decoded)) {
+      if (longestNonPathField === null || value.value.length > longestNonPathField.length) {
+        longestNonPathField = value.value
+      }
+    }
+
+    offset = value.offset
+  }
+
+  return longestNonPathField ?? longestField ?? new Uint8Array()
+}
+
+type GrpcWebCallResult = {
+  messages: Uint8Array[]
+}
+
+async function callGrpcWeb(
   method: string,
   path: string,
   encodedRequest: Uint8Array,
-): Promise<Uint8Array> {
+): Promise<GrpcWebCallResult> {
   let response: Response
 
   try {
@@ -509,7 +752,7 @@ async function callGrpcWebUnary(
   }
 
   const responseBody = new Uint8Array(await response.arrayBuffer())
-  const parsed = parseGrpcWebResponse(responseBody)
+  const parsed = parseGrpcWebFrames(responseBody)
 
   const grpcStatus = parsed.trailerStatus ?? response.headers.get('grpc-status')
   const grpcMessage = parsed.trailerMessage ?? decodeGrpcMessage(response.headers.get('grpc-message'))
@@ -526,7 +769,25 @@ async function callGrpcWebUnary(
     )
   }
 
-  return parsed.message ?? new Uint8Array()
+  return { messages: parsed.messages }
+}
+
+async function callGrpcWebUnary(
+  method: string,
+  path: string,
+  encodedRequest: Uint8Array,
+): Promise<Uint8Array> {
+  const response = await callGrpcWeb(method, path, encodedRequest)
+  return response.messages[0] ?? new Uint8Array()
+}
+
+async function callGrpcWebServerStreaming(
+  method: string,
+  path: string,
+  encodedRequest: Uint8Array,
+): Promise<Uint8Array[]> {
+  const response = await callGrpcWeb(method, path, encodedRequest)
+  return response.messages
 }
 
 function encodeHealthCheckRequest(service: string): Uint8Array {
@@ -561,13 +822,42 @@ function encodeScanCheckRequest(params: {
   session_id: string
   bordro_id: string
   check_no: number
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
 }): Uint8Array {
   return concatBytes([
     encodeStringField(1, params.scanner_id),
     encodeStringField(2, params.session_id),
     encodeStringField(3, params.bordro_id),
     encodeStringField(4, params.check_no.toString()),
+    encodeInt32Field(7, params.duplex ? 1 : 0),
+    encodeInt32Field(8, params.dpi),
+    encodeInt32Field(9, mapScanColorModeToProto(params.color_mode)),
   ])
+}
+
+function encodeListObjectsRequest(prefix: string): Uint8Array {
+  return encodeStringField(1, prefix)
+}
+
+function encodeGetObjectRequest(path: string): Uint8Array {
+  return encodeStringField(1, path)
+}
+
+function getListObjectsPrefixCandidates(prefix: string): string[] {
+  const trimmed = prefix.trim()
+  if (trimmed.length === 0) {
+    return ['']
+  }
+
+  const candidates = [trimmed]
+  const withoutDriveDot = trimmed.replace(/^[a-z]\.(?=[/\\])/iu, '')
+  if (withoutDriveDot !== trimmed) {
+    candidates.push(withoutDriveDot)
+  }
+
+  return [...new Set(candidates)]
 }
 
 export async function listScanners(): Promise<Scanner[]> {
@@ -635,6 +925,9 @@ export async function scanCheck(params: {
   session_id: string
   bordro_id: string
   check_no: number
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
 }): Promise<CheckMetadata> {
   const response = await callGrpcWebUnary(
     'scanCheck',
@@ -644,4 +937,65 @@ export async function scanCheck(params: {
 
   const metadata = parseScanCheckResponse(response)
   return mapProtoMetadataToUi(metadata, params)
+}
+
+export async function listStorageObjects(prefix: string): Promise<string[]> {
+  const prefixCandidates = getListObjectsPrefixCandidates(prefix)
+  let lastParsedPaths: string[] = []
+
+  for (const currentPrefix of prefixCandidates) {
+    const response = await callGrpcWebUnary(
+      'listObjects',
+      STORAGE_LIST_OBJECTS_PATH,
+      encodeListObjectsRequest(currentPrefix),
+    )
+
+    const parsedPaths = parseListObjectsResponse(response)
+    if (parsedPaths.length > 0) {
+      return parsedPaths
+    }
+
+    lastParsedPaths = parsedPaths
+  }
+
+  return lastParsedPaths
+}
+
+export async function getStorageObject(path: string): Promise<Uint8Array> {
+  const messages = await callGrpcWebServerStreaming(
+    'getObject',
+    STORAGE_GET_OBJECT_PATH,
+    encodeGetObjectRequest(path),
+  )
+
+  const chunks = messages
+    .map((message) => parseGetObjectChunkData(message))
+    .filter((chunk) => chunk.length > 0)
+
+  if (chunks.length === 0) {
+    return new Uint8Array()
+  }
+
+  return concatBytes(chunks)
+}
+
+export function resolveStorageObjectPaths(paths: string[]): StorageObjectPaths {
+  const front = findPreferredObjectPathBySuffix(
+    paths,
+    FRONT_IMAGE_FILE_NAME,
+    FRONT_IMAGE_LEGACY_FILE_NAME,
+  )
+  const back = findPreferredObjectPathBySuffix(
+    paths,
+    BACK_IMAGE_FILE_NAME,
+    BACK_IMAGE_LEGACY_FILE_NAME,
+  )
+
+  return {
+    front_path: front.path,
+    front_is_png: front.isPng,
+    back_path: back.path,
+    back_is_png: back.isPng,
+    metadata_path: findObjectPathBySuffix(paths, CHECK_METADATA_FILE_NAME),
+  }
 }

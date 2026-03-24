@@ -55,6 +55,8 @@ export type SessionBordroEntry = BordroEntry & {
   currency: BordroCurrency
 }
 
+export type ScanColorMode = 'UNSPECIFIED' | 'COLOR' | 'GRAYSCALE' | 'BLACK_AND_WHITE'
+
 export type CheckMetadata = {
   object_path: string
   scanner_id: string
@@ -63,6 +65,11 @@ export type CheckMetadata = {
   check_no: number
   micr: string
   qr: string
+  page_count: number
+  micr_qr_match: boolean
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
   front_path: string
   back_path: string
 }
