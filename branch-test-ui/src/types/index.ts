@@ -67,9 +67,18 @@ export type CheckMetadata = {
   qr: string
   page_count: number
   micr_qr_match: boolean
+  // Requested scan options.
   duplex: boolean
   dpi: number
   color_mode: ScanColorMode
+  // Effective options applied by backend after scan.
+  effective_duplex: boolean
+  effective_dpi: number
+  effective_color_mode: ScanColorMode
+  // True when backend could verify effective option.
+  duplex_verified: boolean
+  dpi_verified: boolean
+  color_mode_verified: boolean
   front_path: string
   back_path: string
 }

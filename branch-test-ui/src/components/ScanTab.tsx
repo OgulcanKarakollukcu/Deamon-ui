@@ -140,12 +140,36 @@ function formatScanColorModeLabel(colorMode: ScanColorMode): string {
   return 'Belirsiz'
 }
 
+function getSettingStatus(verified: boolean, matches: boolean): { label: string; badgeClassName: string } {
+  if (!verified) {
+    return {
+      label: 'Doğrulanamadı',
+      badgeClassName:
+        'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    }
+  }
+
+  if (matches) {
+    return {
+      label: 'Uygulandı',
+      badgeClassName:
+        'border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-600/50 dark:bg-emerald-500/10 dark:text-emerald-300',
+    }
+  }
+
+  return {
+    label: 'Farklılandı',
+    badgeClassName:
+      'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-300',
+  }
+}
+
 function getCheckResultKey(check: CheckMetadata): string {
   return `${check.bordro_id}-${check.check_no.toString()}-${check.object_path}`
 }
 
 function hasBackPage(check: CheckMetadata): boolean {
-  return check.duplex || check.page_count > 1
+  return check.effective_duplex || check.page_count > 1
 }
 
 function createObjectUrl(data: Uint8Array, mimeType: string): string {
@@ -577,7 +601,7 @@ export default function ScanTab({
       void loadCheckPreview(metadata, true)
       addLog(
         'info',
-        `Yanıt: scanCheck check_no=${metadata.check_no}, object_path=${metadata.object_path || '-'}, page_count=${metadata.page_count.toString()}, micr_qr_match=${metadata.micr_qr_match ? 'true' : 'false'}, duplex=${metadata.duplex ? 'true' : 'false'}, dpi=${metadata.dpi.toString()}, color_mode=${metadata.color_mode}`,
+        `Yanıt: scanCheck check_no=${metadata.check_no}, object_path=${metadata.object_path || '-'}, page_count=${metadata.page_count.toString()}, micr_qr_match=${metadata.micr_qr_match ? 'true' : 'false'}, requested_duplex=${metadata.duplex ? 'true' : 'false'}, effective_duplex=${metadata.effective_duplex ? 'true' : 'false'}, duplex_verified=${metadata.duplex_verified ? 'true' : 'false'}, requested_dpi=${metadata.dpi.toString()}, effective_dpi=${metadata.effective_dpi.toString()}, dpi_verified=${metadata.dpi_verified ? 'true' : 'false'}, requested_color_mode=${metadata.color_mode}, effective_color_mode=${metadata.effective_color_mode}, color_mode_verified=${metadata.color_mode_verified ? 'true' : 'false'}`,
       )
 
       const nextCheckNo =
@@ -943,6 +967,32 @@ export default function ScanTab({
                 const canRenderBack = Boolean(
                   back.objectUrl && isBackPng && isRenderableImageMimeType(back.mimeType) && !back.renderFailed,
                 )
+                const scanSettings = [
+                  {
+                    key: 'duplex',
+                    label: 'Duplex',
+                    requested: formatDuplexLabel(check.duplex),
+                    effective: formatDuplexLabel(check.effective_duplex),
+                    status: getSettingStatus(check.duplex_verified, check.duplex === check.effective_duplex),
+                  },
+                  {
+                    key: 'dpi',
+                    label: 'DPI',
+                    requested: check.dpi > 0 ? check.dpi.toString() : '-',
+                    effective: check.effective_dpi > 0 ? check.effective_dpi.toString() : '-',
+                    status: getSettingStatus(check.dpi_verified, check.dpi === check.effective_dpi),
+                  },
+                  {
+                    key: 'color_mode',
+                    label: 'Renk Modu',
+                    requested: formatScanColorModeLabel(check.color_mode),
+                    effective: formatScanColorModeLabel(check.effective_color_mode),
+                    status: getSettingStatus(
+                      check.color_mode_verified,
+                      check.color_mode === check.effective_color_mode,
+                    ),
+                  },
+                ]
 
                 return (
                   <article
@@ -997,15 +1047,29 @@ export default function ScanTab({
                         <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           Tarama Ayarları
                         </p>
-                        <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
-                          Duplex: {formatDuplexLabel(check.duplex)}
-                        </p>
-                        <p className="text-sm text-slate-700 dark:text-slate-300">
-                          DPI: {check.dpi > 0 ? check.dpi.toString() : '-'}
-                        </p>
-                        <p className="text-sm text-slate-700 dark:text-slate-300">
-                          Renk: {formatScanColorModeLabel(check.color_mode)}
-                        </p>
+                        <div className="mt-2 space-y-2">
+                          {scanSettings.map((setting) => (
+                            <div key={setting.key} className="rounded-md border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-950/50">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                  {setting.label}
+                                </p>
+                                <span
+                                  className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${setting.status.badgeClassName}`}
+                                >
+                                  {setting.status.label}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                                İstenen: <span className="font-medium text-slate-700 dark:text-slate-200">{setting.requested}</span>
+                              </p>
+                              <p className="text-xs text-slate-600 dark:text-slate-400">
+                                Uygulanan:{' '}
+                                <span className="font-medium text-slate-700 dark:text-slate-200">{setting.effective}</span>
+                              </p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
                         <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">

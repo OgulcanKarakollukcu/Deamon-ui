@@ -104,7 +104,7 @@ function buildCheckKey(check: CheckMetadata): string {
 }
 
 function hasBackPage(check: CheckMetadata): boolean {
-  return check.duplex || check.page_count > 1
+  return check.effective_duplex || check.page_count > 1
 }
 
 export default function BordroTab({
@@ -471,6 +471,8 @@ export default function BordroTab({
     () => [...activeScannedChecks].sort((left, right) => left.check_no - right.check_no),
     [activeScannedChecks],
   )
+  const activeCheckCount = activeBordro?.check_count ?? form.checkCount
+  const formattedCheckCount = activeCheckCount.toString().padStart(3, '0')
 
   return (
     <div className="h-full min-h-0 space-y-4">
@@ -487,14 +489,11 @@ export default function BordroTab({
             </div>
 
             <div className="mt-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-center dark:border-slate-700 dark:bg-slate-950">
-              <p className="text-3xl font-black tracking-[0.12em] text-slate-900 dark:text-slate-100">
-                {activeBordro ? shortenId(activeBordro.bordro_id) : '00000'}
+              <p className="text-4xl font-black tabular-nums tracking-[0.2em] text-slate-900 dark:text-slate-100">
+                {formattedCheckCount}
               </p>
               <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-                Toplam Çek
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                {(activeBordro?.check_count ?? form.checkCount).toString()}
+                Çek Sayısı
               </p>
             </div>
 
@@ -706,12 +705,12 @@ export default function BordroTab({
             </div>
           </article>
 
-          <article className="min-h-0 flex-1 rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40">
+          <article className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40">
             <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-800">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Döküman Ağacı</h3>
             </div>
 
-            <div className="min-h-0 overflow-auto p-3">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
               {activeBordroId === null ? (
                 <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
                   Önce bir bordro seçin.

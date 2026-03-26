@@ -36,9 +36,24 @@ type ProtoCheckMetadata = {
   object_path: string
   page_count: number
   micr_qr_match: boolean
+  has_duplex: boolean
   duplex: boolean
+  has_dpi: boolean
   dpi: number
+  has_color_mode: boolean
   color_mode: number
+  has_effective_duplex: boolean
+  effective_duplex: boolean
+  has_effective_dpi: boolean
+  effective_dpi: number
+  has_effective_color_mode: boolean
+  effective_color_mode: number
+  has_duplex_verified: boolean
+  duplex_verified: boolean
+  has_dpi_verified: boolean
+  dpi_verified: boolean
+  has_color_mode_verified: boolean
+  color_mode_verified: boolean
 }
 
 type PcDaemonStatus = 'available' | 'reserved' | 'unavailable'
@@ -445,9 +460,24 @@ function parseCheckMetadata(payload: Uint8Array): ProtoCheckMetadata {
     object_path: '',
     page_count: 0,
     micr_qr_match: false,
+    has_duplex: false,
     duplex: false,
+    has_dpi: false,
     dpi: 0,
+    has_color_mode: false,
     color_mode: 0,
+    has_effective_duplex: false,
+    effective_duplex: false,
+    has_effective_dpi: false,
+    effective_dpi: 0,
+    has_effective_color_mode: false,
+    effective_color_mode: 0,
+    has_duplex_verified: false,
+    duplex_verified: false,
+    has_dpi_verified: false,
+    dpi_verified: false,
+    has_color_mode_verified: false,
+    color_mode_verified: false,
   }
 
   while (offset < payload.length) {
@@ -493,6 +523,7 @@ function parseCheckMetadata(payload: Uint8Array): ProtoCheckMetadata {
 
     if (fieldNumber === 8 && wireType === 0) {
       const value = decodeVarint(payload, offset)
+      metadata.has_duplex = true
       metadata.duplex = value.value !== 0
       offset = value.offset
       continue
@@ -500,6 +531,7 @@ function parseCheckMetadata(payload: Uint8Array): ProtoCheckMetadata {
 
     if (fieldNumber === 9 && wireType === 0) {
       const value = decodeVarint(payload, offset)
+      metadata.has_dpi = true
       metadata.dpi = value.value
       offset = value.offset
       continue
@@ -507,7 +539,56 @@ function parseCheckMetadata(payload: Uint8Array): ProtoCheckMetadata {
 
     if (fieldNumber === 10 && wireType === 0) {
       const value = decodeVarint(payload, offset)
+      metadata.has_color_mode = true
       metadata.color_mode = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 11 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.has_effective_duplex = true
+      metadata.effective_duplex = value.value !== 0
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 12 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.has_effective_dpi = true
+      metadata.effective_dpi = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 13 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.has_effective_color_mode = true
+      metadata.effective_color_mode = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 14 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.has_duplex_verified = true
+      metadata.duplex_verified = value.value !== 0
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 15 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.has_dpi_verified = true
+      metadata.dpi_verified = value.value !== 0
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 16 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.has_color_mode_verified = true
+      metadata.color_mode_verified = value.value !== 0
       offset = value.offset
       continue
     }
@@ -546,12 +627,27 @@ function mapProtoMetadataToUi(
     session_id: string
     bordro_id: string
     check_no: number
+    duplex: boolean
+    dpi: number
+    color_mode: ScanColorMode
   },
 ): CheckMetadata {
   const parsedCheckNo = Number.parseInt(metadata.check_no, 10)
   const checkNo = Number.isInteger(parsedCheckNo) && parsedCheckNo > 0
     ? parsedCheckNo
     : request.check_no
+  const requestedDuplex = metadata.has_duplex ? metadata.duplex : request.duplex
+  const requestedDpi = metadata.has_dpi && metadata.dpi > 0 ? metadata.dpi : request.dpi
+  const requestedColorMode = metadata.has_color_mode
+    ? mapProtoScanColorModeToUi(metadata.color_mode)
+    : request.color_mode
+  const effectiveDuplex = metadata.has_effective_duplex ? metadata.effective_duplex : requestedDuplex
+  const effectiveDpi = metadata.has_effective_dpi && metadata.effective_dpi > 0
+    ? metadata.effective_dpi
+    : requestedDpi
+  const effectiveColorMode = metadata.has_effective_color_mode
+    ? mapProtoScanColorModeToUi(metadata.effective_color_mode)
+    : requestedColorMode
 
   return {
     object_path: metadata.object_path,
@@ -563,9 +659,15 @@ function mapProtoMetadataToUi(
     qr: metadata.qr_data,
     page_count: metadata.page_count,
     micr_qr_match: metadata.micr_qr_match,
-    duplex: metadata.duplex,
-    dpi: metadata.dpi,
-    color_mode: mapProtoScanColorModeToUi(metadata.color_mode),
+    duplex: requestedDuplex,
+    dpi: requestedDpi,
+    color_mode: requestedColorMode,
+    effective_duplex: effectiveDuplex,
+    effective_dpi: effectiveDpi,
+    effective_color_mode: effectiveColorMode,
+    duplex_verified: metadata.has_duplex_verified ? metadata.duplex_verified : false,
+    dpi_verified: metadata.has_dpi_verified ? metadata.dpi_verified : false,
+    color_mode_verified: metadata.has_color_mode_verified ? metadata.color_mode_verified : false,
     // Front/back object path values are resolved via ListObjects.
     front_path: '',
     back_path: '',
