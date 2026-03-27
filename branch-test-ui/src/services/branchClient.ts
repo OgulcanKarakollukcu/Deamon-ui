@@ -989,7 +989,7 @@ function encodeScanCheckRequest(params: {
   dpi: number
   color_mode: ScanColorMode
 }): Uint8Array {
-  const scanOptions = encodeScanOptionsFields({
+  const scanOptions = encodeScanCheckOptionsFields({
     duplex: params.duplex,
     dpi: params.dpi,
     color_mode: params.color_mode,
@@ -1011,7 +1011,7 @@ function encodeScanBordroRequest(params: {
   dpi: number
   color_mode: ScanColorMode
 }): Uint8Array {
-  const scanOptions = encodeScanOptionsFields({
+  const scanOptions = encodeScanBordroOptionsFields({
     duplex: params.duplex,
     dpi: params.dpi,
     color_mode: params.color_mode,
@@ -1024,7 +1024,7 @@ function encodeScanBordroRequest(params: {
   ])
 }
 
-function encodeScanOptionsFields(params: {
+function encodeScanCheckOptionsFields(params: {
   duplex: boolean
   dpi: number
   color_mode: ScanColorMode
@@ -1034,6 +1034,19 @@ function encodeScanOptionsFields(params: {
     encodeBoolField(7, duplex),
     encodeInt32Field(8, params.dpi),
     encodeInt32Field(9, mapScanColorModeToProto(params.color_mode)),
+  ]
+}
+
+function encodeScanBordroOptionsFields(params: {
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
+}): Uint8Array[] {
+  const duplex = params.duplex === true
+  return [
+    encodeBoolField(4, duplex),
+    encodeInt32Field(5, params.dpi),
+    encodeInt32Field(6, mapScanColorModeToProto(params.color_mode)),
   ]
 }
 

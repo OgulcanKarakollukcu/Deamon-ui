@@ -42,6 +42,9 @@ type ViewerState = {
   objectUrl: string | null
   objectPath: string | null
   mimeType: string | null
+  byteSize: number | null
+  imageWidth: number | null
+  imageHeight: number | null
   renderFailed: boolean
   error: string | null
 }
@@ -61,7 +64,7 @@ const INITIAL_SCAN_RESERVATION_STATE: ScanReservationState = {
 }
 const DEFAULT_BORDRO_SCAN_SETTINGS: ScanSettings = {
   duplex: false,
-  dpi: 200,
+  dpi: 300,
   color_mode: 'COLOR',
 }
 
@@ -70,6 +73,9 @@ const INITIAL_VIEWER_STATE: ViewerState = {
   objectUrl: null,
   objectPath: null,
   mimeType: null,
+  byteSize: null,
+  imageWidth: null,
+  imageHeight: null,
   renderFailed: false,
   error: null,
 }
@@ -139,12 +145,68 @@ function resolveDownloadExtension(path: string, mimeType: string | null): string
   return '.bin'
 }
 
+function formatFileSize(byteSize: number | null): string | null {
+  if (byteSize === null || byteSize < 0) {
+    return null
+  }
+
+  if (byteSize < 1024) {
+    return `${byteSize.toString()} B`
+  }
+
+  if (byteSize < 1024 * 1024) {
+    return `${(byteSize / 1024).toFixed(1)} KB`
+  }
+
+  return `${(byteSize / (1024 * 1024)).toFixed(2)} MB`
+}
+
 function isRenderableImageMimeType(mimeType: string | null): boolean {
   if (mimeType === null) {
     return false
   }
 
   return mimeType.startsWith('image/')
+}
+
+async function readImageDimensions(blob: Blob, mimeType: string): Promise<{ width: number; height: number } | null> {
+  if (!mimeType.startsWith('image/')) {
+    return null
+  }
+
+  if (typeof globalThis.createImageBitmap === 'function') {
+    try {
+      const bitmap = await globalThis.createImageBitmap(blob)
+      const dimensions = {
+        width: bitmap.width,
+        height: bitmap.height,
+      }
+      bitmap.close()
+      return dimensions
+    } catch {
+      // Fall back to Image decoding below.
+    }
+  }
+
+  return await new Promise((resolve) => {
+    const objectUrl = URL.createObjectURL(blob)
+    const image = new Image()
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve({
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+      })
+    }
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve(null)
+    }
+
+    image.src = objectUrl
+  })
 }
 
 function buildCheckKey(check: CheckMetadata): string {
@@ -306,6 +368,9 @@ export default function BordroTab({
             objectUrl: null,
             objectPath: null,
             mimeType: null,
+            byteSize: null,
+            imageWidth: null,
+            imageHeight: null,
             renderFailed: false,
             error: null,
           })
@@ -327,13 +392,18 @@ export default function BordroTab({
       const mimeType = resolvePreviewMimeType(metadataContentType, path)
       const copied = new Uint8Array(objectBytes.byteLength)
       copied.set(objectBytes)
-      const objectUrl = URL.createObjectURL(new Blob([copied], { type: mimeType }))
+      const blob = new Blob([copied], { type: mimeType })
+      const objectUrl = URL.createObjectURL(blob)
+      const dimensions = await readImageDimensions(blob, mimeType)
 
       updateViewer({
         isLoading: false,
         objectUrl,
         objectPath: path,
         mimeType,
+        byteSize: blob.size,
+        imageWidth: dimensions?.width ?? null,
+        imageHeight: dimensions?.height ?? null,
         renderFailed: false,
         error: null,
       })
@@ -344,6 +414,9 @@ export default function BordroTab({
         isLoading: false,
         objectUrl: null,
         mimeType: null,
+        byteSize: null,
+        imageWidth: null,
+        imageHeight: null,
         renderFailed: false,
         error: message,
       }))
@@ -444,7 +517,6 @@ export default function BordroTab({
         }
       })
       onActiveBordroChange(response.bordro_id)
-      openScanModalForBordro(response.bordro_id)
     } catch (submitError) {
       const message = getErrorMessage(submitError)
       setError(message)
@@ -587,6 +659,13 @@ export default function BordroTab({
   )
   const activeCheckCount = activeBordro?.check_count ?? form.checkCount
   const formattedCheckCount = activeCheckCount.toString().padStart(3, '0')
+  const viewerInfo = [
+    viewer.mimeType,
+    formatFileSize(viewer.byteSize),
+    viewer.imageWidth !== null && viewer.imageHeight !== null
+      ? `${viewer.imageWidth.toString()} x ${viewer.imageHeight.toString()} px`
+      : null,
+  ].filter((value): value is string => Boolean(value))
 
   return (
     <div className="h-full min-h-0 space-y-4">
@@ -946,6 +1025,11 @@ export default function BordroTab({
             </div>
 
             <div className="border-t border-slate-200 px-4 py-3 dark:border-slate-800">
+              {viewerInfo.length > 0 ? (
+                <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                  Görsel: {viewerInfo.join(' | ')}
+                </p>
+              ) : null}
               <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
                 MICR KOD :{' '}
                 {selectedCheck?.micr ? (

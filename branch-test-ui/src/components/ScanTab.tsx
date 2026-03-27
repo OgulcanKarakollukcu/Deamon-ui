@@ -52,6 +52,8 @@ type CheckStorageState = {
   error: string | null
   frontImagePath: string | null
   backImagePath: string | null
+  frontImageSizeLabel: string | null
+  backImageSizeLabel: string | null
   metadataPath: string | null
   metadataJson: string | null
   metadata: ParsedCheckStorageMetadata | null
@@ -63,6 +65,8 @@ function createInitialCheckStorageState(): CheckStorageState {
     error: null,
     frontImagePath: null,
     backImagePath: null,
+    frontImageSizeLabel: null,
+    backImageSizeLabel: null,
     metadataPath: null,
     metadataJson: null,
     metadata: null,
@@ -90,7 +94,7 @@ const SCANNER_STATUS_META: Record<
   },
 }
 
-const SCAN_DPI_OPTIONS = [200, 300, 600]
+const SCAN_DPI_OPTIONS = [300, 600]
 const SCAN_COLOR_MODE_OPTIONS: Array<{ value: ScanColorMode; label: string }> = [
   { value: 'COLOR', label: 'Renkli' },
   { value: 'GRAYSCALE', label: 'Gri Ton' },
@@ -98,15 +102,38 @@ const SCAN_COLOR_MODE_OPTIONS: Array<{ value: ScanColorMode; label: string }> = 
 ]
 const DEFAULT_SCAN_SETTINGS: ScanSettings = {
   duplex: false,
-  dpi: 200,
+  dpi: 300,
   color_mode: 'COLOR',
 }
 
 let cachedSessionId: string | null = null
 
+function createFallbackSessionId(): string {
+  const cryptoApi = globalThis.crypto
+  if (cryptoApi?.getRandomValues) {
+    const bytes = new Uint8Array(16)
+    cryptoApi.getRandomValues(bytes)
+    bytes[6] = (bytes[6] & 0x0f) | 0x40
+    bytes[8] = (bytes[8] & 0x3f) | 0x80
+
+    const hex = [...bytes].map((value) => value.toString(16).padStart(2, '0'))
+    return [
+      hex.slice(0, 4).join(''),
+      hex.slice(4, 6).join(''),
+      hex.slice(6, 8).join(''),
+      hex.slice(8, 10).join(''),
+      hex.slice(10, 16).join(''),
+    ].join('-')
+  }
+
+  return `session-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 function getStableSessionId(): string {
   if (cachedSessionId === null) {
-    cachedSessionId = crypto.randomUUID()
+    const cryptoApi = globalThis.crypto
+    cachedSessionId =
+      typeof cryptoApi?.randomUUID === 'function' ? cryptoApi.randomUUID() : createFallbackSessionId()
   }
 
   return cachedSessionId
@@ -197,6 +224,18 @@ function getNonEmptyString(value: unknown): string | null {
 
 function getBooleanOrNull(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null
+}
+
+function formatByteSize(byteLength: number): string {
+  if (byteLength < 1024) {
+    return `${byteLength.toString()} B`
+  }
+
+  if (byteLength < 1024 * 1024) {
+    return `${(byteLength / 1024).toFixed(1)} KB`
+  }
+
+  return `${(byteLength / (1024 * 1024)).toFixed(2)} MB`
 }
 
 function parseCheckStorageMetadata(payload: Uint8Array): {
@@ -425,6 +464,12 @@ export default function ScanTab({
           check.back_image_path,
           parsedMetadata?.back_image_path,
         )
+        const frontImageSizeLabel = frontImagePath
+          ? formatByteSize((await getStorageObject(frontImagePath)).length)
+          : null
+        const backImageSizeLabel = backImagePath
+          ? formatByteSize((await getStorageObject(backImagePath)).length)
+          : null
 
         setScannedChecks((previousChecks) => {
           let hasChanges = false
@@ -466,6 +511,8 @@ export default function ScanTab({
           error: null,
           frontImagePath,
           backImagePath,
+          frontImageSizeLabel,
+          backImageSizeLabel,
           metadataPath,
           metadataJson,
           metadata: parsedMetadata,
@@ -602,7 +649,7 @@ export default function ScanTab({
     }
 
     if (!SCAN_DPI_OPTIONS.includes(scanDpi)) {
-      setError('DPI alanı 200, 300 veya 600 olmalı.')
+      setError('DPI alanı 300 veya 600 olmalı.')
       return
     }
 
@@ -993,6 +1040,8 @@ export default function ScanTab({
                 metadata?.back_image_path,
                 storageDetails?.backImagePath,
               )
+              const frontImageSizeLabel = storageDetails?.frontImageSizeLabel ?? null
+              const backImageSizeLabel = storageDetails?.backImageSizeLabel ?? null
               const scanSettings = [
                 {
                   key: 'duplex',
@@ -1102,6 +1151,9 @@ export default function ScanTab({
                             <p className="break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
                               {frontImagePath ?? '-'}
                             </p>
+                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                              Boyut: {frontImageSizeLabel ?? '-'}
+                            </p>
                           </div>
                           <div>
                             <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400">back_image_path</p>
@@ -1127,6 +1179,18 @@ export default function ScanTab({
                         Sayfa Sayısı:{' '}
                         <span className="font-semibold text-slate-700 dark:text-slate-200">
                           {check.page_count.toString()}
+                        </span>
+                      </p>
+                      <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                        Ön Yüz Boyutu:{' '}
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">
+                          {frontImageSizeLabel ?? '-'}
+                        </span>
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                        Arka Yüz Boyutu:{' '}
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">
+                          {backImageSizeLabel ?? (backImagePath ? '-' : 'Arka yüz yok')}
                         </span>
                       </p>
                       <div className="mt-2 space-y-2">
