@@ -15,7 +15,7 @@ import type {
   CreateBordroRequest,
   SessionBordroEntry,
 } from '../types'
-import ScanTab, { type ScanReservationState } from './ScanTab'
+import ScanTab, { type ScanReservationState, type ScanSettings } from './ScanTab'
 
 type BordroTabProps = {
   activeBordroId: string | null
@@ -60,6 +60,11 @@ const INITIAL_SCAN_RESERVATION_STATE: ScanReservationState = {
   isReserved: false,
   scannerId: null,
   sessionId: '',
+}
+const DEFAULT_BORDRO_SCAN_SETTINGS: ScanSettings = {
+  duplex: false,
+  dpi: 200,
+  color_mode: 'COLOR',
 }
 
 const INITIAL_VIEWER_STATE: ViewerState = {
@@ -135,6 +140,7 @@ export default function BordroTab({
     INITIAL_SCAN_RESERVATION_STATE,
   )
   const [scannedChecksByBordro, setScannedChecksByBordro] = useState<Record<string, CheckMetadata[]>>({})
+  const [scanSettingsByBordro, setScanSettingsByBordro] = useState<Record<string, ScanSettings>>({})
   const [selectedPage, setSelectedPage] = useState<SelectedPageState | null>(null)
   const [viewer, setViewer] = useState<ViewerState>(INITIAL_VIEWER_STATE)
 
@@ -143,6 +149,24 @@ export default function BordroTab({
     () => bordros.find((bordro) => bordro.bordro_id === activeBordroId) ?? null,
     [activeBordroId, bordros],
   )
+  const currentScanBordro = useMemo(
+    () => bordros.find((bordro) => bordro.bordro_id === currentScanBordroId) ?? null,
+    [bordros, currentScanBordroId],
+  )
+  const currentScanSettings = useMemo<ScanSettings>(() => {
+    if (!currentScanBordroId) {
+      return DEFAULT_BORDRO_SCAN_SETTINGS
+    }
+
+    return scanSettingsByBordro[currentScanBordroId] ?? DEFAULT_BORDRO_SCAN_SETTINGS
+  }, [currentScanBordroId, scanSettingsByBordro])
+  const currentScanChecks = useMemo(() => {
+    if (!currentScanBordroId) {
+      return []
+    }
+
+    return scannedChecksByBordro[currentScanBordroId] ?? []
+  }, [currentScanBordroId, scannedChecksByBordro])
   const activeScannedChecks = useMemo(() => {
     if (!activeBordroId) {
       return []
@@ -360,6 +384,18 @@ export default function BordroTab({
       }
 
       setBordros((previous) => [newBordro, ...previous])
+      setScanSettingsByBordro((previous) => {
+        if (previous[response.bordro_id]) {
+          return previous
+        }
+
+        return {
+          ...previous,
+          [response.bordro_id]: {
+            ...DEFAULT_BORDRO_SCAN_SETTINGS,
+          },
+        }
+      })
       onActiveBordroChange(response.bordro_id)
       openScanModalForBordro(response.bordro_id)
     } catch (submitError) {
@@ -428,6 +464,11 @@ export default function BordroTab({
       delete next[activeBordroId]
       return next
     })
+    setScanSettingsByBordro((previous) => {
+      const next = { ...previous }
+      delete next[activeBordroId]
+      return next
+    })
     setSelectedPage(null)
     onActiveBordroChange(nextActiveBordroId)
     addLog('info', `Bordro silindi: ${activeBordroId}`)
@@ -453,14 +494,40 @@ export default function BordroTab({
       }
 
       setScannedChecksByBordro((previous) => {
-        const existingChecks = previous[currentScanBordroId] ?? []
-        if (checks.length === 0 && existingChecks.length > 0) {
+        if (previous[currentScanBordroId] === checks) {
           return previous
         }
 
         return {
           ...previous,
           [currentScanBordroId]: checks,
+        }
+      })
+    },
+    [currentScanBordroId],
+  )
+  const handleScanSettingsChange = useCallback(
+    (settings: ScanSettings) => {
+      if (!currentScanBordroId) {
+        return
+      }
+
+      setScanSettingsByBordro((previous) => {
+        const existing = previous[currentScanBordroId]
+        if (
+          existing &&
+          existing.duplex === settings.duplex &&
+          existing.dpi === settings.dpi &&
+          existing.color_mode === settings.color_mode
+        ) {
+          return previous
+        }
+
+        return {
+          ...previous,
+          [currentScanBordroId]: {
+            ...settings,
+          },
         }
       })
     },
@@ -889,8 +956,12 @@ export default function BordroTab({
               <div className="overflow-y-auto p-4 md:p-6">
                 <ScanTab
                   activeBordroId={currentScanBordroId}
+                  expectedCheckCount={currentScanBordro?.check_count ?? null}
+                  initialScannedChecks={currentScanChecks}
+                  initialScanSettings={currentScanSettings}
                   onScannedCheckCountChange={setModalScannedCheckCount}
                   onScannedChecksChange={handleModalScannedChecksChange}
+                  onScanSettingsChange={handleScanSettingsChange}
                   onReservationStateChange={setScanReservationState}
                 />
               </div>

@@ -24,6 +24,7 @@ const RESERVE_SCANNER_PATH = '/daemon.scan.ScanService/ReserveScanner'
 const RELEASE_SCANNER_PATH = '/daemon.scan.ScanService/ReleaseScanner'
 const CREATE_BORDRO_PATH = '/daemon.check.CheckService/CreateBordro'
 const SCAN_CHECK_PATH = '/daemon.check.CheckService/ScanCheck'
+const SCAN_BORDRO_PATH = '/daemon.check.CheckService/ScanBordro'
 const STORAGE_LIST_OBJECTS_PATH = '/daemon.storage.StorageService/ListObjects'
 const STORAGE_GET_OBJECT_PATH = '/daemon.storage.StorageService/GetObject'
 const HEALTH_CHECK_PATH = '/grpc.health.v1.Health/Check'
@@ -620,6 +621,30 @@ function parseScanCheckResponse(payload: Uint8Array): ProtoCheckMetadata {
   throw new Error('scanCheck response did not include metadata')
 }
 
+function parseScanBordroResponse(payload: Uint8Array): ProtoCheckMetadata[] {
+  let offset = 0
+  const checks: ProtoCheckMetadata[] = []
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (fieldNumber === 1 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      checks.push(parseCheckMetadata(value.value))
+      offset = value.offset
+      continue
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  return checks
+}
+
 function mapProtoMetadataToUi(
   metadata: ProtoCheckMetadata,
   request: {
@@ -648,6 +673,11 @@ function mapProtoMetadataToUi(
   const effectiveColorMode = metadata.has_effective_color_mode
     ? mapProtoScanColorModeToUi(metadata.effective_color_mode)
     : requestedColorMode
+  const pageCount = metadata.page_count > 0
+    ? metadata.page_count
+    : effectiveDuplex
+      ? 2
+      : 1
 
   return {
     object_path: metadata.object_path,
@@ -657,7 +687,7 @@ function mapProtoMetadataToUi(
     check_no: checkNo,
     micr: metadata.micr_data,
     qr: metadata.qr_data,
-    page_count: metadata.page_count,
+    page_count: pageCount,
     micr_qr_match: metadata.micr_qr_match,
     duplex: requestedDuplex,
     dpi: requestedDpi,
@@ -939,6 +969,24 @@ function encodeScanCheckRequest(params: {
   ])
 }
 
+function encodeScanBordroRequest(params: {
+  scanner_id: string
+  session_id: string
+  bordro_id: string
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
+}): Uint8Array {
+  return concatBytes([
+    encodeStringField(1, params.scanner_id),
+    encodeStringField(2, params.session_id),
+    encodeStringField(3, params.bordro_id),
+    encodeInt32Field(7, params.duplex ? 1 : 0),
+    encodeInt32Field(8, params.dpi),
+    encodeInt32Field(9, mapScanColorModeToProto(params.color_mode)),
+  ])
+}
+
 function encodeListObjectsRequest(prefix: string): Uint8Array {
   return encodeStringField(1, prefix)
 }
@@ -1039,6 +1087,30 @@ export async function scanCheck(params: {
 
   const metadata = parseScanCheckResponse(response)
   return mapProtoMetadataToUi(metadata, params)
+}
+
+export async function scanBordro(params: {
+  scanner_id: string
+  session_id: string
+  bordro_id: string
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
+}): Promise<CheckMetadata[]> {
+  const response = await callGrpcWebUnary(
+    'scanBordro',
+    SCAN_BORDRO_PATH,
+    encodeScanBordroRequest(params),
+  )
+
+  return parseScanBordroResponse(response)
+    .map((metadata, index) =>
+      mapProtoMetadataToUi(metadata, {
+        ...params,
+        check_no: index + 1,
+      }),
+    )
+    .sort((left, right) => left.check_no - right.check_no)
 }
 
 export async function listStorageObjects(prefix: string): Promise<string[]> {

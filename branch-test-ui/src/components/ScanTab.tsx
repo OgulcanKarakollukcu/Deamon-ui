@@ -8,14 +8,18 @@ import {
   releaseScanner,
   reserveScanner,
   resolveStorageObjectPaths,
-  scanCheck,
+  scanBordro,
 } from '../services/branchClient'
 import type { CheckMetadata, ScanColorMode, Scanner } from '../types'
 
 type ScanTabProps = {
   activeBordroId: string | null
+  expectedCheckCount?: number | null
+  initialScannedChecks?: CheckMetadata[]
+  initialScanSettings?: ScanSettings
   onScannedCheckCountChange?: (count: number) => void
   onScannedChecksChange?: (checks: CheckMetadata[]) => void
+  onScanSettingsChange?: (settings: ScanSettings) => void
   onReservationStateChange?: (state: ScanReservationState) => void
 }
 
@@ -23,6 +27,12 @@ export type ScanReservationState = {
   isReserved: boolean
   scannerId: string | null
   sessionId: string
+}
+
+export type ScanSettings = {
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
 }
 
 type ImagePreviewState = {
@@ -88,6 +98,11 @@ const SCAN_COLOR_MODE_OPTIONS: Array<{ value: ScanColorMode; label: string }> = 
   { value: 'GRAYSCALE', label: 'Gri Ton' },
   { value: 'BLACK_AND_WHITE', label: 'Siyah-Beyaz' },
 ]
+const DEFAULT_SCAN_SETTINGS: ScanSettings = {
+  duplex: false,
+  dpi: 200,
+  color_mode: 'COLOR',
+}
 
 let cachedSessionId: string | null = null
 
@@ -101,6 +116,11 @@ function getStableSessionId(): string {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function isFailedPreconditionError(message: string): boolean {
+  const normalized = message.toLowerCase()
+  return normalized.includes('failed_precondition') || normalized.includes('grpc 9')
 }
 
 function getScannerSelectionKey(scanner: Scanner): string {
@@ -202,8 +222,12 @@ function revokePreviewUrls(preview: CheckPreviewState | undefined): void {
 
 export default function ScanTab({
   activeBordroId,
+  expectedCheckCount = null,
+  initialScannedChecks = [],
+  initialScanSettings,
   onScannedCheckCountChange,
   onScannedChecksChange,
+  onScanSettingsChange,
   onReservationStateChange,
 }: ScanTabProps) {
   const { addLog } = useLogContext()
@@ -212,11 +236,16 @@ export default function ScanTab({
   const [selectedScannerKey, setSelectedScannerKey] = useState<string | null>(null)
   const [isReserved, setIsReserved] = useState<boolean>(false)
   const [reservedScannerId, setReservedScannerId] = useState<string | null>(null)
-  const [scannedChecks, setScannedChecks] = useState<CheckMetadata[]>([])
-  const [checkNo, setCheckNo] = useState<number>(1)
-  const [scanDuplex, setScanDuplex] = useState<boolean>(false)
-  const [scanDpi, setScanDpi] = useState<number>(200)
-  const [scanColorMode, setScanColorMode] = useState<ScanColorMode>('COLOR')
+  const [scannedChecks, setScannedChecks] = useState<CheckMetadata[]>(() => initialScannedChecks)
+  const [scanDuplex, setScanDuplex] = useState<boolean>(
+    initialScanSettings?.duplex ?? DEFAULT_SCAN_SETTINGS.duplex,
+  )
+  const [scanDpi, setScanDpi] = useState<number>(
+    initialScanSettings?.dpi ?? DEFAULT_SCAN_SETTINGS.dpi,
+  )
+  const [scanColorMode, setScanColorMode] = useState<ScanColorMode>(
+    initialScanSettings?.color_mode ?? DEFAULT_SCAN_SETTINGS.color_mode,
+  )
   const [error, setError] = useState<string | null>(null)
   const [hasListedScanners, setHasListedScanners] = useState<boolean>(false)
   const [isListing, setIsListing] = useState<boolean>(false)
@@ -248,6 +277,21 @@ export default function ScanTab({
   const activeScannerId = activeScanner?.scanner_id ?? null
   const reservationScannerId = isReserved ? reservedScannerId : activeScannerId
   const scanDisabled = !isReserved || reservationScannerId === null || activeBordroId === null
+  const sortedScannedChecks = useMemo(
+    () => [...scannedChecks].sort((left, right) => left.check_no - right.check_no),
+    [scannedChecks],
+  )
+
+  useEffect(() => {
+    setScanDuplex(initialScanSettings?.duplex ?? DEFAULT_SCAN_SETTINGS.duplex)
+    setScanDpi(initialScanSettings?.dpi ?? DEFAULT_SCAN_SETTINGS.dpi)
+    setScanColorMode(initialScanSettings?.color_mode ?? DEFAULT_SCAN_SETTINGS.color_mode)
+  }, [
+    activeBordroId,
+    initialScanSettings?.color_mode,
+    initialScanSettings?.dpi,
+    initialScanSettings?.duplex,
+  ])
 
   useEffect(() => {
     onScannedCheckCountChange?.(scannedChecks.length)
@@ -256,6 +300,14 @@ export default function ScanTab({
   useEffect(() => {
     onScannedChecksChange?.(scannedChecks)
   }, [onScannedChecksChange, scannedChecks])
+
+  useEffect(() => {
+    onScanSettingsChange?.({
+      duplex: scanDuplex,
+      dpi: scanDpi,
+      color_mode: scanColorMode,
+    })
+  }, [onScanSettingsChange, scanColorMode, scanDpi, scanDuplex])
 
   useEffect(() => {
     onReservationStateChange?.({
@@ -542,9 +594,6 @@ export default function ScanTab({
       setIsReserved(false)
       setReservedScannerId(null)
       setSelectedScannerKey(null)
-      setScannedChecks([])
-      clearAllPreviews()
-      setCheckNo(1)
       addLog('info', `Yanıt: releaseScanner scanner_id=${scannerId}`)
     } catch (releaseError) {
       const message = getErrorMessage(releaseError)
@@ -569,11 +618,6 @@ export default function ScanTab({
       return
     }
 
-    if (!Number.isInteger(checkNo) || checkNo < 1) {
-      setError('Çek numarası en az 1 olmalı.')
-      return
-    }
-
     if (!SCAN_DPI_OPTIONS.includes(scanDpi)) {
       setError('DPI alanı 200, 300 veya 600 olmalı.')
       return
@@ -585,34 +629,49 @@ export default function ScanTab({
     try {
       addLog(
         'info',
-        `İstek: scanCheck {scanner_id:${scannerId}, session_id:${sessionId}, bordro_id:${bordroId}, check_no:${checkNo}, duplex:${scanDuplex ? 'true' : 'false'}, dpi:${scanDpi.toString()}, color_mode:${scanColorMode}}`,
+        `İstek: scanBordro {scanner_id:${scannerId}, session_id:${sessionId}, bordro_id:${bordroId}, duplex:${scanDuplex ? 'true' : 'false'}, dpi:${scanDpi.toString()}, color_mode:${scanColorMode}}`,
       )
-      const metadata = await scanCheck({
+      const checks = await scanBordro({
         scanner_id: scannerId,
         session_id: sessionId,
         bordro_id: bordroId,
-        check_no: checkNo,
         duplex: scanDuplex,
         dpi: scanDpi,
         color_mode: scanColorMode,
       })
+      clearAllPreviews()
+      setScannedChecks(checks)
+      addLog('info', `Yanıt: scanBordro checks=${checks.length.toString()}`)
 
-      setScannedChecks((prev) => [...prev, metadata])
-      void loadCheckPreview(metadata, true)
-      addLog(
-        'info',
-        `Yanıt: scanCheck check_no=${metadata.check_no}, object_path=${metadata.object_path || '-'}, page_count=${metadata.page_count.toString()}, micr_qr_match=${metadata.micr_qr_match ? 'true' : 'false'}, requested_duplex=${metadata.duplex ? 'true' : 'false'}, effective_duplex=${metadata.effective_duplex ? 'true' : 'false'}, duplex_verified=${metadata.duplex_verified ? 'true' : 'false'}, requested_dpi=${metadata.dpi.toString()}, effective_dpi=${metadata.effective_dpi.toString()}, dpi_verified=${metadata.dpi_verified ? 'true' : 'false'}, requested_color_mode=${metadata.color_mode}, effective_color_mode=${metadata.effective_color_mode}, color_mode_verified=${metadata.color_mode_verified ? 'true' : 'false'}`,
+      if (checks.length === 0) {
+        const emptyResultMessage =
+          'Bordro için taranacak çek bulunamadı. Muhtemelen bordro check_count=0 oluşturuldu.'
+        setError(emptyResultMessage)
+        addLog('warn', `Uyarı: scanBordro ${emptyResultMessage}`)
+        return
+      }
+
+      const expectedPageCount = scanDuplex ? 2 : 1
+      const unexpectedPageCountChecks = checks.filter(
+        (check) => check.page_count !== expectedPageCount,
       )
-
-      const nextCheckNo =
-        Number.isInteger(metadata.check_no) && metadata.check_no > 0
-          ? metadata.check_no + 1
-          : checkNo + 1
-      setCheckNo(nextCheckNo)
+      if (unexpectedPageCountChecks.length > 0) {
+        addLog(
+          'warn',
+          `Uyarı: scanBordro ${unexpectedPageCountChecks.length.toString()} çekte page_count beklenen ${expectedPageCount.toString()} dışında.`,
+        )
+      }
     } catch (scanError) {
       const message = getErrorMessage(scanError)
-      setError(message)
-      addLog('error', `Hata: scanCheck ${message}`)
+      if (isFailedPreconditionError(message)) {
+        const failedPreconditionMessage =
+          'Tarama başlatılamadı: failed_precondition. Muhtemelen bordro check_count=0 oluşturuldu.'
+        setError(failedPreconditionMessage)
+        addLog('warn', `Uyarı: scanBordro ${message}`)
+      } else {
+        setError(message)
+        addLog('error', `Hata: scanBordro ${message}`)
+      }
     } finally {
       setIsScanning(false)
     }
@@ -779,7 +838,9 @@ export default function ScanTab({
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
             Adım 2
           </p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">Çek Tarama</h2>
+          <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+            Bordro Tarama
+          </h2>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
@@ -817,46 +878,6 @@ export default function ScanTab({
           }}
           className="flex flex-wrap items-end gap-3"
         >
-          <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-200">Check No</span>
-            <input
-              type="number"
-              min={1}
-              inputMode="numeric"
-              value={checkNo}
-              disabled={!isReserved || isScanning}
-              onChange={(event) => {
-                const parsedValue = event.target.valueAsNumber
-                const nextValue = Number.isFinite(parsedValue) ? Math.max(1, Math.trunc(parsedValue)) : 1
-                setCheckNo(nextValue)
-              }}
-              className="w-32 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500"
-            />
-          </label>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setCheckNo((prev) => Math.max(1, prev - 1))
-              }}
-              disabled={!isReserved || isScanning || checkNo <= 1}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              -
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCheckNo((prev) => prev + 1)
-              }}
-              disabled={!isReserved || isScanning}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              +
-            </button>
-          </div>
-
           <label className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
             <input
               type="checkbox"
@@ -922,8 +943,20 @@ export default function ScanTab({
             className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
           >
             {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {isScanning ? 'Taranıyor…' : 'Tara'}
+            {isScanning ? 'Bordro Taranıyor…' : 'Tara'}
           </button>
+
+          {isScanning ? (
+            <p className="w-full text-xs text-cyan-700 dark:text-cyan-300">
+              {expectedCheckCount && expectedCheckCount > 0
+                ? `${expectedCheckCount.toString()} çek taranıyor, lütfen bekleyin…`
+                : 'Bordrodaki çekler taranıyor, lütfen bekleyin…'}
+            </p>
+          ) : (
+            <p className="w-full text-xs text-slate-500 dark:text-slate-400">
+              Bu işlem tek çağrıda bordrodaki tüm çekleri tarar.
+            </p>
+          )}
         </form>
       </section>
 
@@ -937,19 +970,17 @@ export default function ScanTab({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Tarama Sonuçları</h3>
           <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-            {scannedChecks.length.toString()} çek
+            {sortedScannedChecks.length.toString()} çek
           </span>
         </div>
 
-        {scannedChecks.length === 0 ? (
+        {sortedScannedChecks.length === 0 ? (
           <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400">
             Henüz çek taranmadı.
           </p>
         ) : (
           <div className="space-y-4">
-            {[...scannedChecks]
-              .sort((left, right) => right.check_no - left.check_no)
-              .map((check) => {
+            {sortedScannedChecks.map((check) => {
                 const checkKey = getCheckResultKey(check)
                 const preview = checkPreviews[checkKey]
                 const isPreviewLoading = preview?.isLoading ?? true
@@ -1182,7 +1213,7 @@ export default function ScanTab({
                     ) : null}
                   </article>
                 )
-              })}
+            })}
           </div>
         )}
       </section>
