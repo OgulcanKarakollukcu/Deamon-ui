@@ -19,9 +19,9 @@ const FRONT_IMAGE_LEGACY_FILE_NAME = 'front.bin'
 const BACK_IMAGE_LEGACY_FILE_NAME = 'back.bin'
 const CHECK_METADATA_FILE_NAME = 'metadata.json'
 
-const LIST_SCANNERS_PATH = '/daemon.scan.ScanService/ListScanners'
-const RESERVE_SCANNER_PATH = '/daemon.scan.ScanService/ReserveScanner'
-const RELEASE_SCANNER_PATH = '/daemon.scan.ScanService/ReleaseScanner'
+const LIST_SCANNERS_PATH = '/daemon.management.ManagementService/ListScanners'
+const RESERVE_SCANNER_PATH = '/daemon.management.ManagementService/ReserveScanner'
+const RELEASE_SCANNER_PATH = '/daemon.management.ManagementService/ReleaseScanner'
 const CREATE_BORDRO_PATH = '/daemon.check.CheckService/CreateBordro'
 const SCAN_CHECK_PATH = '/daemon.check.CheckService/ScanCheck'
 const SCAN_BORDRO_PATH = '/daemon.check.CheckService/ScanBordro'
@@ -35,6 +35,10 @@ type ProtoCheckMetadata = {
   micr_data: string
   qr_data: string
   object_path: string
+  front_image_path: string
+  back_image_path: string
+  front_image_content_type: string
+  back_image_content_type: string
   page_count: number
   micr_qr_match: boolean
   has_duplex: boolean
@@ -65,6 +69,11 @@ export type StorageObjectPaths = {
   back_path: string | null
   back_is_png: boolean
   metadata_path: string | null
+}
+
+export type StorageObjectData = {
+  data: Uint8Array
+  contentType: string | null
 }
 
 function mapScanColorModeToProto(mode: ScanColorMode): number {
@@ -187,6 +196,10 @@ function encodeStringField(fieldNumber: number, value: string): Uint8Array {
 
 function encodeInt32Field(fieldNumber: number, value: number): Uint8Array {
   return concatBytes([encodeTag(fieldNumber, 0), encodeVarint(value)])
+}
+
+function encodeBoolField(fieldNumber: number, value: boolean): Uint8Array {
+  return concatBytes([encodeTag(fieldNumber, 0), encodeVarint(value ? 1 : 0)])
 }
 
 function readLengthDelimited(
@@ -459,6 +472,10 @@ function parseCheckMetadata(payload: Uint8Array): ProtoCheckMetadata {
     micr_data: '',
     qr_data: '',
     object_path: '',
+    front_image_path: '',
+    back_image_path: '',
+    front_image_content_type: '',
+    back_image_content_type: '',
     page_count: 0,
     micr_qr_match: false,
     has_duplex: false,
@@ -502,6 +519,14 @@ function parseCheckMetadata(payload: Uint8Array): ProtoCheckMetadata {
         metadata.qr_data = decoded
       } else if (fieldNumber === 5) {
         metadata.object_path = decoded
+      } else if (fieldNumber === 17) {
+        metadata.front_image_path = decoded
+      } else if (fieldNumber === 18) {
+        metadata.back_image_path = decoded
+      } else if (fieldNumber === 19) {
+        metadata.front_image_content_type = decoded
+      } else if (fieldNumber === 20) {
+        metadata.back_image_content_type = decoded
       }
 
       offset = value.offset
@@ -685,6 +710,12 @@ function mapProtoMetadataToUi(
     session_id: request.session_id,
     bordro_id: metadata.bordro_id || request.bordro_id,
     check_no: checkNo,
+    micr_data: metadata.micr_data,
+    qr_data: metadata.qr_data,
+    front_image_path: metadata.front_image_path,
+    back_image_path: metadata.back_image_path,
+    front_image_content_type: metadata.front_image_content_type,
+    back_image_content_type: metadata.back_image_content_type,
     micr: metadata.micr_data,
     qr: metadata.qr_data,
     page_count: pageCount,
@@ -698,9 +729,9 @@ function mapProtoMetadataToUi(
     duplex_verified: metadata.has_duplex_verified ? metadata.duplex_verified : false,
     dpi_verified: metadata.has_dpi_verified ? metadata.dpi_verified : false,
     color_mode_verified: metadata.has_color_mode_verified ? metadata.color_mode_verified : false,
-    // Front/back object path values are resolved via ListObjects.
-    front_path: '',
-    back_path: '',
+    // Front/back object path values can arrive from API, otherwise are resolved via ListObjects.
+    front_path: metadata.front_image_path,
+    back_path: metadata.back_image_path,
   }
 }
 
@@ -958,14 +989,17 @@ function encodeScanCheckRequest(params: {
   dpi: number
   color_mode: ScanColorMode
 }): Uint8Array {
+  const scanOptions = encodeScanOptionsFields({
+    duplex: params.duplex,
+    dpi: params.dpi,
+    color_mode: params.color_mode,
+  })
   return concatBytes([
     encodeStringField(1, params.scanner_id),
     encodeStringField(2, params.session_id),
     encodeStringField(3, params.bordro_id),
     encodeStringField(4, params.check_no.toString()),
-    encodeInt32Field(7, params.duplex ? 1 : 0),
-    encodeInt32Field(8, params.dpi),
-    encodeInt32Field(9, mapScanColorModeToProto(params.color_mode)),
+    ...scanOptions,
   ])
 }
 
@@ -977,14 +1011,30 @@ function encodeScanBordroRequest(params: {
   dpi: number
   color_mode: ScanColorMode
 }): Uint8Array {
+  const scanOptions = encodeScanOptionsFields({
+    duplex: params.duplex,
+    dpi: params.dpi,
+    color_mode: params.color_mode,
+  })
   return concatBytes([
     encodeStringField(1, params.scanner_id),
     encodeStringField(2, params.session_id),
     encodeStringField(3, params.bordro_id),
-    encodeInt32Field(7, params.duplex ? 1 : 0),
+    ...scanOptions,
+  ])
+}
+
+function encodeScanOptionsFields(params: {
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
+}): Uint8Array[] {
+  const duplex = params.duplex === true
+  return [
+    encodeBoolField(7, duplex),
     encodeInt32Field(8, params.dpi),
     encodeInt32Field(9, mapScanColorModeToProto(params.color_mode)),
-  ])
+  ]
 }
 
 function encodeListObjectsRequest(prefix: string): Uint8Array {
@@ -1008,6 +1058,34 @@ function getListObjectsPrefixCandidates(prefix: string): string[] {
   }
 
   return [...new Set(candidates)]
+}
+
+function getGetObjectPathCandidates(path: string): string[] {
+  const trimmed = path.trim()
+  if (trimmed.length === 0) {
+    return ['']
+  }
+
+  const candidates = [trimmed]
+
+  const withoutCurrentDirPrefix = trimmed.replace(/^\.([/\\]+)/u, '')
+  if (withoutCurrentDirPrefix !== trimmed) {
+    candidates.push(withoutCurrentDirPrefix)
+  }
+
+  const withoutLeadingSlash = trimmed.replace(/^[/\\]+/u, '')
+  if (withoutLeadingSlash !== trimmed) {
+    candidates.push(withoutLeadingSlash)
+  }
+
+  const normalizedSlashes = trimmed.replace(/\\/gu, '/')
+  if (normalizedSlashes !== trimmed) {
+    candidates.push(normalizedSlashes)
+    candidates.push(normalizedSlashes.replace(/^\.\/+/u, ''))
+    candidates.push(normalizedSlashes.replace(/^\/+/u, ''))
+  }
+
+  return [...new Set(candidates.map((candidate) => candidate.trim()).filter((candidate) => candidate.length > 0))]
 }
 
 export async function listScanners(): Promise<Scanner[]> {
@@ -1136,21 +1214,44 @@ export async function listStorageObjects(prefix: string): Promise<string[]> {
 }
 
 export async function getStorageObject(path: string): Promise<Uint8Array> {
-  const messages = await callGrpcWebServerStreaming(
-    'getObject',
-    STORAGE_GET_OBJECT_PATH,
-    encodeGetObjectRequest(path),
-  )
+  const pathCandidates = getGetObjectPathCandidates(path)
+  let lastError: unknown = null
 
-  const chunks = messages
-    .map((message) => parseGetObjectChunkData(message))
-    .filter((chunk) => chunk.length > 0)
+  for (const candidatePath of pathCandidates) {
+    try {
+      const messages = await callGrpcWebServerStreaming(
+        'getObject',
+        STORAGE_GET_OBJECT_PATH,
+        encodeGetObjectRequest(candidatePath),
+      )
 
-  if (chunks.length === 0) {
-    return new Uint8Array()
+      const chunks = messages
+        .map((message) => parseGetObjectChunkData(message))
+        .filter((chunk) => chunk.length > 0)
+
+      if (chunks.length === 0) {
+        return new Uint8Array()
+      }
+
+      return concatBytes(chunks)
+    } catch (error) {
+      lastError = error
+    }
   }
 
-  return concatBytes(chunks)
+  if (lastError instanceof Error) {
+    throw lastError
+  }
+
+  throw new Error('getObject failed: geçerli bir obje yolu bulunamadı.')
+}
+
+export async function getStorageObjectWithContentType(path: string): Promise<StorageObjectData> {
+  const data = await getStorageObject(path)
+  return {
+    data,
+    contentType: null,
+  }
 }
 
 export function resolveStorageObjectPaths(paths: string[]): StorageObjectPaths {

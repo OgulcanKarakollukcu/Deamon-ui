@@ -4,9 +4,7 @@ import { useLogContext } from '../context/LogContext'
 import {
   createBordro,
   getStorageObject,
-  listStorageObjects,
   releaseScanner,
-  resolveStorageObjectPaths,
 } from '../services/branchClient'
 import type {
   BordroCheckType,
@@ -88,12 +86,57 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-function isPngStorageObjectPath(path: string | null): boolean {
-  if (path === null) {
-    return false
+function getStorageObjectPath(path: string): string | null {
+  const trimmed = path.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function inferMimeTypeFromPath(path: string): string {
+  const normalized = path.trim().toLowerCase()
+  if (normalized.endsWith('.jpg') || normalized.endsWith('.jpeg')) {
+    return 'image/jpeg'
   }
 
-  return path.trim().toLowerCase().endsWith('.png')
+  if (normalized.endsWith('.png')) {
+    return 'image/png'
+  }
+
+  return 'application/octet-stream'
+}
+
+function resolvePreviewMimeType(contentType: string | null, path: string): string {
+  const normalizedContentType = contentType?.trim() ?? ''
+  if (normalizedContentType.length > 0) {
+    return normalizedContentType
+  }
+
+  return inferMimeTypeFromPath(path)
+}
+
+function resolveDownloadExtension(path: string, mimeType: string | null): string {
+  const normalizedPath = path.trim().toLowerCase()
+  if (normalizedPath.endsWith('.png')) {
+    return '.png'
+  }
+
+  if (normalizedPath.endsWith('.jpg')) {
+    return '.jpg'
+  }
+
+  if (normalizedPath.endsWith('.jpeg')) {
+    return '.jpeg'
+  }
+
+  const normalizedMimeType = mimeType?.trim().toLowerCase() ?? ''
+  if (normalizedMimeType === 'image/png') {
+    return '.png'
+  }
+
+  if (normalizedMimeType === 'image/jpeg') {
+    return '.jpg'
+  }
+
+  return '.bin'
 }
 
 function isRenderableImageMimeType(mimeType: string | null): boolean {
@@ -252,9 +295,9 @@ export default function BordroTab({
     }))
 
     try {
-      const listedPaths = await listStorageObjects(selectedCheck.object_path)
-      const resolvedPaths = resolveStorageObjectPaths(listedPaths)
-      const path = selectedPage.side === 'front' ? resolvedPaths.front_path : resolvedPaths.back_path
+      const frontImagePath = getStorageObjectPath(selectedCheck.front_image_path)
+      const backImagePath = getStorageObjectPath(selectedCheck.back_image_path)
+      const path = selectedPage.side === 'front' ? frontImagePath : backImagePath
 
       if (!path) {
         if (selectedPage.side === 'back') {
@@ -272,14 +315,18 @@ export default function BordroTab({
         throw new Error('Ön yüz için obje path bulunamadı.')
       }
 
-      const bytes = await getStorageObject(path)
-      if (bytes.length === 0) {
+      const objectBytes = await getStorageObject(path)
+      if (objectBytes.length === 0) {
         throw new Error('Görüntü verisi boş döndü.')
       }
 
-      const mimeType = isPngStorageObjectPath(path) ? 'image/png' : 'application/octet-stream'
-      const copied = new Uint8Array(bytes.byteLength)
-      copied.set(bytes)
+      const metadataContentType =
+        selectedPage.side === 'front'
+          ? selectedCheck.front_image_content_type
+          : selectedCheck.back_image_content_type
+      const mimeType = resolvePreviewMimeType(metadataContentType, path)
+      const copied = new Uint8Array(objectBytes.byteLength)
+      copied.set(objectBytes)
       const objectUrl = URL.createObjectURL(new Blob([copied], { type: mimeType }))
 
       updateViewer({
@@ -863,7 +910,7 @@ export default function BordroTab({
                       Tekrar Dene
                     </button>
                   </div>
-                ) : viewer.objectUrl && viewer.mimeType === 'image/png' && isRenderableImageMimeType(viewer.mimeType) && !viewer.renderFailed ? (
+                ) : viewer.objectUrl && isRenderableImageMimeType(viewer.mimeType) && !viewer.renderFailed ? (
                   <img
                     src={viewer.objectUrl}
                     alt={`Check ${selectedCheck.check_no.toString()} ${selectedPage.side}`}
@@ -875,13 +922,16 @@ export default function BordroTab({
                 ) : viewer.objectUrl ? (
                   <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
                     <p>
-                      {viewer.mimeType === 'image/png'
+                      {isRenderableImageMimeType(viewer.mimeType)
                         ? 'Bu dosya tarayıcıda görselleştirilemedi.'
                         : 'Legacy .bin kayıt: önizleme devre dışı, dosyayı indirebilirsiniz.'}
                     </p>
                     <a
                       href={viewer.objectUrl}
-                      download={`check-${selectedCheck.check_no.toString()}-${selectedPage.side}${viewer.mimeType === 'image/png' ? '.png' : '.bin'}`}
+                      download={`check-${selectedCheck.check_no.toString()}-${selectedPage.side}${resolveDownloadExtension(
+                        viewer.objectPath ?? '',
+                        viewer.mimeType,
+                      )}`}
                       className="inline-flex rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                       Dosyayı İndir

@@ -2,6 +2,7 @@ export {
   checkHealth,
   createBordro,
   getStorageObject,
+  getStorageObjectWithContentType,
   listScanners,
   listStorageObjects,
   releaseScanner,

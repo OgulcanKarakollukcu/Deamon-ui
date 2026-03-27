@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2, RefreshCcw, ScanLine } from 'lucide-react'
 import { useLogContext } from '../context/LogContext'
 import {
@@ -35,39 +35,37 @@ export type ScanSettings = {
   color_mode: ScanColorMode
 }
 
-type ImagePreviewState = {
-  objectPath: string | null
-  objectUrl: string | null
-  mimeType: string | null
-  error: string | null
-  renderFailed: boolean
+type ParsedCheckStorageMetadata = {
+  scanner_id: string | null
+  session_id: string | null
+  bordro_no: string | null
+  check_no: string | null
+  micr_data: string | null
+  qr_data: string | null
+  micr_qr_match: boolean | null
+  front_image_path: string | null
+  back_image_path: string | null
 }
 
-type CheckPreviewState = {
+type CheckStorageState = {
   isLoading: boolean
   error: string | null
-  front: ImagePreviewState
-  back: ImagePreviewState
+  frontImagePath: string | null
+  backImagePath: string | null
   metadataPath: string | null
   metadataJson: string | null
+  metadata: ParsedCheckStorageMetadata | null
 }
 
-const EMPTY_IMAGE_PREVIEW: ImagePreviewState = {
-  objectPath: null,
-  objectUrl: null,
-  mimeType: null,
-  error: null,
-  renderFailed: false,
-}
-
-function createInitialCheckPreview(): CheckPreviewState {
+function createInitialCheckStorageState(): CheckStorageState {
   return {
     isLoading: false,
     error: null,
-    front: { ...EMPTY_IMAGE_PREVIEW },
-    back: { ...EMPTY_IMAGE_PREVIEW },
+    frontImagePath: null,
+    backImagePath: null,
     metadataPath: null,
     metadataJson: null,
+    metadata: null,
   }
 }
 
@@ -188,35 +186,78 @@ function getCheckResultKey(check: CheckMetadata): string {
   return `${check.bordro_id}-${check.check_no.toString()}-${check.object_path}`
 }
 
-function hasBackPage(check: CheckMetadata): boolean {
-  return check.effective_duplex || check.page_count > 1
-}
-
-function createObjectUrl(data: Uint8Array, mimeType: string): string {
-  const copied = new Uint8Array(data.byteLength)
-  copied.set(data)
-  return URL.createObjectURL(new Blob([copied], { type: mimeType }))
-}
-
-function isRenderableImageMimeType(mimeType: string | null): boolean {
-  if (mimeType === null) {
-    return false
+function getNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null
   }
 
-  return mimeType.startsWith('image/')
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
 }
 
-function revokePreviewUrls(preview: CheckPreviewState | undefined): void {
-  if (!preview) {
-    return
+function getBooleanOrNull(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null
+}
+
+function parseCheckStorageMetadata(payload: Uint8Array): {
+  metadataJson: string | null
+  metadata: ParsedCheckStorageMetadata | null
+} {
+  if (payload.length === 0) {
+    return { metadataJson: null, metadata: null }
   }
 
-  if (preview.front.objectUrl) {
-    URL.revokeObjectURL(preview.front.objectUrl)
+  const decodedText = new TextDecoder().decode(payload).trim()
+  if (decodedText.length === 0) {
+    return { metadataJson: null, metadata: null }
   }
 
-  if (preview.back.objectUrl) {
-    URL.revokeObjectURL(preview.back.objectUrl)
+  try {
+    const parsedUnknown: unknown = JSON.parse(decodedText)
+    if (!parsedUnknown || typeof parsedUnknown !== 'object') {
+      return { metadataJson: decodedText, metadata: null }
+    }
+
+    const parsed = parsedUnknown as Record<string, unknown>
+    return {
+      metadataJson: JSON.stringify(parsedUnknown, null, 2),
+      metadata: {
+        scanner_id: getNonEmptyString(parsed.scanner_id),
+        session_id: getNonEmptyString(parsed.session_id),
+        bordro_no: getNonEmptyString(parsed.bordro_no),
+        check_no: getNonEmptyString(parsed.check_no),
+        micr_data: getNonEmptyString(parsed.micr_data),
+        qr_data: getNonEmptyString(parsed.qr_data),
+        micr_qr_match: getBooleanOrNull(parsed.micr_qr_match),
+        front_image_path: getNonEmptyString(parsed.front_image_path),
+        back_image_path: getNonEmptyString(parsed.back_image_path),
+      },
+    }
+  } catch {
+    return {
+      metadataJson: decodedText,
+      metadata: null,
+    }
+  }
+}
+
+function firstNonEmpty(...values: Array<string | null | undefined>): string | null {
+  for (const value of values) {
+    const normalized = getNonEmptyString(value)
+    if (normalized) {
+      return normalized
+    }
+  }
+
+  return null
+}
+
+function getCheckValidationStatus(isMatch: boolean): { label: string; badgeClassName: string } {
+  return {
+    label: isMatch ? 'Doğrulandı' : 'MICR ve QR eşleşmiyor',
+    badgeClassName: isMatch
+      ? 'border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-600/50 dark:bg-emerald-500/10 dark:text-emerald-300'
+      : 'border-red-200 bg-red-100 text-red-700 dark:border-red-500/50 dark:bg-red-500/10 dark:text-red-300',
   }
 }
 
@@ -237,7 +278,7 @@ export default function ScanTab({
   const [isReserved, setIsReserved] = useState<boolean>(false)
   const [reservedScannerId, setReservedScannerId] = useState<string | null>(null)
   const [scannedChecks, setScannedChecks] = useState<CheckMetadata[]>(() => initialScannedChecks)
-  const [scanDuplex, setScanDuplex] = useState<boolean>(
+  const [isDuplex, setIsDuplex] = useState<boolean>(
     initialScanSettings?.duplex ?? DEFAULT_SCAN_SETTINGS.duplex,
   )
   const [scanDpi, setScanDpi] = useState<number>(
@@ -252,20 +293,9 @@ export default function ScanTab({
   const [isReserving, setIsReserving] = useState<boolean>(false)
   const [isReleasing, setIsReleasing] = useState<boolean>(false)
   const [isScanning, setIsScanning] = useState<boolean>(false)
-  const [checkPreviews, setCheckPreviews] = useState<Record<string, CheckPreviewState>>({})
-  const previewCacheRef = useRef<Record<string, CheckPreviewState>>({})
-
-  useEffect(() => {
-    previewCacheRef.current = checkPreviews
-  }, [checkPreviews])
-
-  useEffect(() => {
-    return () => {
-      for (const preview of Object.values(previewCacheRef.current)) {
-        revokePreviewUrls(preview)
-      }
-    }
-  }, [])
+  const [checkStorageDetails, setCheckStorageDetails] = useState<Record<string, CheckStorageState>>(
+    {},
+  )
 
   const activeScanner = useMemo(() => {
     if (selectedScannerKey === null) {
@@ -283,7 +313,7 @@ export default function ScanTab({
   )
 
   useEffect(() => {
-    setScanDuplex(initialScanSettings?.duplex ?? DEFAULT_SCAN_SETTINGS.duplex)
+    setIsDuplex(initialScanSettings?.duplex ?? DEFAULT_SCAN_SETTINGS.duplex)
     setScanDpi(initialScanSettings?.dpi ?? DEFAULT_SCAN_SETTINGS.dpi)
     setScanColorMode(initialScanSettings?.color_mode ?? DEFAULT_SCAN_SETTINGS.color_mode)
   }, [
@@ -303,11 +333,11 @@ export default function ScanTab({
 
   useEffect(() => {
     onScanSettingsChange?.({
-      duplex: scanDuplex,
+      duplex: isDuplex,
       dpi: scanDpi,
       color_mode: scanColorMode,
     })
-  }, [onScanSettingsChange, scanColorMode, scanDpi, scanDuplex])
+  }, [onScanSettingsChange, scanColorMode, scanDpi, isDuplex])
 
   useEffect(() => {
     onReservationStateChange?.({
@@ -317,93 +347,53 @@ export default function ScanTab({
     })
   }, [isReserved, onReservationStateChange, reservationScannerId, sessionId])
 
-  const updateCheckPreview = useCallback(
+  const updateCheckStorageState = useCallback(
     (
       checkKey: string,
-      updater: (previous: CheckPreviewState | undefined) => CheckPreviewState,
+      updater: (previous: CheckStorageState | undefined) => CheckStorageState,
     ): void => {
-      setCheckPreviews((previousPreviews) => {
-        const previousPreview = previousPreviews[checkKey]
-        const nextPreview = updater(previousPreview)
-
-        if (previousPreview?.front.objectUrl && previousPreview.front.objectUrl !== nextPreview.front.objectUrl) {
-          URL.revokeObjectURL(previousPreview.front.objectUrl)
-        }
-
-        if (previousPreview?.back.objectUrl && previousPreview.back.objectUrl !== nextPreview.back.objectUrl) {
-          URL.revokeObjectURL(previousPreview.back.objectUrl)
-        }
-
-        return {
-          ...previousPreviews,
-          [checkKey]: nextPreview,
-        }
-      })
+      setCheckStorageDetails((previousDetails) => ({
+        ...previousDetails,
+        [checkKey]: updater(previousDetails[checkKey]),
+      }))
     },
     [],
   )
 
-  const clearAllPreviews = useCallback((): void => {
-    setCheckPreviews((previousPreviews) => {
-      for (const preview of Object.values(previousPreviews)) {
-        revokePreviewUrls(preview)
-      }
-
-      return {}
-    })
+  const clearAllCheckStorageDetails = useCallback((): void => {
+    setCheckStorageDetails({})
   }, [])
 
-  const markImageRenderFailed = useCallback(
-    (checkKey: string, side: 'front' | 'back'): void => {
-      updateCheckPreview(checkKey, (previous) => {
-        const nextState = previous ?? createInitialCheckPreview()
-        return {
-          ...nextState,
-          [side]: {
-            ...nextState[side],
-            renderFailed: true,
-          },
-        }
-      })
-    },
-    [updateCheckPreview],
-  )
-
-  const loadCheckPreview = useCallback(
+  const loadCheckStorageDetails = useCallback(
     async (check: CheckMetadata, forceReload = false): Promise<void> => {
       const checkKey = getCheckResultKey(check)
-      const currentState = previewCacheRef.current[checkKey]
-      if (!forceReload && currentState && (currentState.isLoading || currentState.front.objectUrl || currentState.back.objectUrl)) {
+      const currentState = checkStorageDetails[checkKey]
+      if (
+        !forceReload &&
+        currentState &&
+        (currentState.isLoading ||
+          currentState.metadataPath !== null ||
+          currentState.frontImagePath !== null ||
+          currentState.backImagePath !== null ||
+          currentState.metadataJson !== null)
+      ) {
         return
       }
 
       if (!check.object_path.trim()) {
-        updateCheckPreview(checkKey, (previous) => ({
-          ...(previous ?? createInitialCheckPreview()),
+        updateCheckStorageState(checkKey, (previous) => ({
+          ...(previous ?? createInitialCheckStorageState()),
           isLoading: false,
           error: 'Object path boş döndü.',
         }))
         return
       }
 
-      updateCheckPreview(checkKey, (previous) => {
-        const nextState = previous ?? createInitialCheckPreview()
-        return {
-          ...nextState,
-          isLoading: true,
-          error: null,
-          front: {
-            ...nextState.front,
-            error: null,
-            renderFailed: false,
-          },
-          back: {
-            ...nextState.back,
-            error: null,
-            renderFailed: false,
-          },
-        }
-      })
+      updateCheckStorageState(checkKey, (previous) => ({
+        ...(previous ?? createInitialCheckStorageState()),
+        isLoading: true,
+        error: null,
+      }))
 
       try {
         addLog('info', `İstek: listObjects {prefix:${check.object_path}}`)
@@ -411,103 +401,96 @@ export default function ScanTab({
         addLog('info', `Yanıt: listObjects objects=${listedPaths.length.toString()}`)
 
         const resolvedPaths = resolveStorageObjectPaths(listedPaths)
-        const expectedBackPage = hasBackPage(check)
-
-        const frontPromise = resolvedPaths.front_path
-          ? getStorageObject(resolvedPaths.front_path)
-          : Promise.resolve<Uint8Array | null>(null)
-        const backPromise = resolvedPaths.back_path
-          ? getStorageObject(resolvedPaths.back_path)
-          : Promise.resolve<Uint8Array | null>(null)
-        const metadataPromise = resolvedPaths.metadata_path
-          ? getStorageObject(resolvedPaths.metadata_path)
-          : Promise.resolve(new Uint8Array())
-
-        const [frontResult, backResult, metadataResult] = await Promise.allSettled([
-          frontPromise,
-          backPromise,
-          metadataPromise,
-        ])
-
+        const metadataPath = resolvedPaths.metadata_path
         let metadataJson: string | null = null
-        if (metadataResult.status === 'fulfilled' && metadataResult.value.length > 0) {
-          const decodedText = new TextDecoder().decode(metadataResult.value).trim()
-          if (decodedText.length > 0) {
-            try {
-              metadataJson = JSON.stringify(JSON.parse(decodedText), null, 2)
-            } catch {
-              metadataJson = decodedText
+        let parsedMetadata: ParsedCheckStorageMetadata | null = null
+
+        if (metadataPath) {
+          try {
+            const metadataPayload = await getStorageObject(metadataPath)
+            const parsedResult = parseCheckStorageMetadata(metadataPayload)
+            metadataJson = parsedResult.metadataJson
+            parsedMetadata = parsedResult.metadata
+          } catch (metadataError) {
+            const metadataMessage = getErrorMessage(metadataError)
+            addLog('warn', `Uyarı: metadata.json okunamadı ${metadataMessage}`)
+          }
+        }
+
+        const frontImagePath = firstNonEmpty(
+          check.front_image_path,
+          parsedMetadata?.front_image_path,
+        )
+        const backImagePath = firstNonEmpty(
+          check.back_image_path,
+          parsedMetadata?.back_image_path,
+        )
+
+        setScannedChecks((previousChecks) => {
+          let hasChanges = false
+
+          const nextChecks = previousChecks.map((currentCheck) => {
+            if (getCheckResultKey(currentCheck) !== checkKey) {
+              return currentCheck
             }
-          }
-        }
 
-        const frontState: ImagePreviewState = {
-          ...EMPTY_IMAGE_PREVIEW,
-          objectPath: resolvedPaths.front_path,
-        }
-        if (frontResult.status === 'fulfilled') {
-          if (frontResult.value && frontResult.value.length > 0) {
-            const mimeType = resolvedPaths.front_is_png ? 'image/png' : 'application/octet-stream'
-            frontState.mimeType = mimeType
-            frontState.objectUrl = createObjectUrl(frontResult.value, mimeType)
-          } else if (frontResult.value && frontResult.value.length === 0) {
-            frontState.error = 'front dosyası boş döndü.'
-          } else {
-            frontState.error = 'front.png/front.bin bulunamadı.'
-          }
-        } else {
-          frontState.error = getErrorMessage(frontResult.reason)
-        }
+            const nextFrontImagePath = firstNonEmpty(currentCheck.front_image_path, frontImagePath)
+            const nextBackImagePath = firstNonEmpty(currentCheck.back_image_path, backImagePath)
+            const resolvedFrontImagePath = nextFrontImagePath ?? ''
+            const resolvedBackImagePath = nextBackImagePath ?? ''
 
-        const backState: ImagePreviewState = {
-          ...EMPTY_IMAGE_PREVIEW,
-          objectPath: resolvedPaths.back_path,
-        }
-        if (backResult.status === 'fulfilled') {
-          if (backResult.value && backResult.value.length > 0) {
-            const mimeType = resolvedPaths.back_is_png ? 'image/png' : 'application/octet-stream'
-            backState.mimeType = mimeType
-            backState.objectUrl = createObjectUrl(backResult.value, mimeType)
-          } else if (backResult.value && backResult.value.length === 0 && expectedBackPage) {
-            backState.error = 'back dosyası boş döndü.'
-          }
-        } else if (expectedBackPage) {
-          backState.error = getErrorMessage(backResult.reason)
-        }
+            if (
+              currentCheck.front_image_path === resolvedFrontImagePath &&
+              currentCheck.back_image_path === resolvedBackImagePath &&
+              currentCheck.front_path === resolvedFrontImagePath &&
+              currentCheck.back_path === resolvedBackImagePath
+            ) {
+              return currentCheck
+            }
 
-        const previewError = frontState.objectUrl !== null
-          ? null
-          : frontState.error ?? 'Ön yüz görüntüsü yüklenemedi.'
+            hasChanges = true
+            return {
+              ...currentCheck,
+              front_image_path: resolvedFrontImagePath,
+              back_image_path: resolvedBackImagePath,
+              front_path: resolvedFrontImagePath,
+              back_path: resolvedBackImagePath,
+            }
+          })
 
-        updateCheckPreview(checkKey, () => ({
+          return hasChanges ? nextChecks : previousChecks
+        })
+
+        updateCheckStorageState(checkKey, () => ({
           isLoading: false,
-          error: previewError,
-          front: frontState,
-          back: backState,
-          metadataPath: resolvedPaths.metadata_path,
+          error: null,
+          frontImagePath,
+          backImagePath,
+          metadataPath,
           metadataJson,
+          metadata: parsedMetadata,
         }))
-      } catch (previewError) {
-        const message = getErrorMessage(previewError)
-        updateCheckPreview(checkKey, (previous) => ({
-          ...(previous ?? createInitialCheckPreview()),
+      } catch (detailsError) {
+        const message = getErrorMessage(detailsError)
+        updateCheckStorageState(checkKey, (previous) => ({
+          ...(previous ?? createInitialCheckStorageState()),
           isLoading: false,
           error: message,
         }))
-        addLog('error', `Hata: storage preview ${message}`)
+        addLog('error', `Hata: storage detayları ${message}`)
       }
     },
-    [addLog, updateCheckPreview],
+    [addLog, checkStorageDetails, updateCheckStorageState],
   )
 
   useEffect(() => {
     for (const check of scannedChecks) {
       const checkKey = getCheckResultKey(check)
-      if (!checkPreviews[checkKey]) {
-        void loadCheckPreview(check)
+      if (!checkStorageDetails[checkKey]) {
+        void loadCheckStorageDetails(check)
       }
     }
-  }, [checkPreviews, loadCheckPreview, scannedChecks])
+  }, [checkStorageDetails, loadCheckStorageDetails, scannedChecks])
 
   const handleListScanners = useCallback(async (): Promise<void> => {
     setError(null)
@@ -624,22 +607,31 @@ export default function ScanTab({
     }
 
     const bordroId = activeBordroId
+    const dpi = scanDpi
+    const colorMode = scanColorMode
     setIsScanning(true)
 
     try {
+      console.log('scan request', {
+        duplex: isDuplex,
+        dpi,
+        colorMode,
+        scannerId,
+        bordroId,
+      })
       addLog(
         'info',
-        `İstek: scanBordro {scanner_id:${scannerId}, session_id:${sessionId}, bordro_id:${bordroId}, duplex:${scanDuplex ? 'true' : 'false'}, dpi:${scanDpi.toString()}, color_mode:${scanColorMode}}`,
+        `İstek: scanBordro {scanner_id:${scannerId}, session_id:${sessionId}, bordro_id:${bordroId}, duplex:${isDuplex ? 'true' : 'false'}, dpi:${dpi.toString()}, color_mode:${colorMode}}`,
       )
       const checks = await scanBordro({
         scanner_id: scannerId,
         session_id: sessionId,
         bordro_id: bordroId,
-        duplex: scanDuplex,
-        dpi: scanDpi,
-        color_mode: scanColorMode,
+        duplex: isDuplex,
+        dpi,
+        color_mode: colorMode,
       })
-      clearAllPreviews()
+      clearAllCheckStorageDetails()
       setScannedChecks(checks)
       addLog('info', `Yanıt: scanBordro checks=${checks.length.toString()}`)
 
@@ -651,7 +643,7 @@ export default function ScanTab({
         return
       }
 
-      const expectedPageCount = scanDuplex ? 2 : 1
+      const expectedPageCount = isDuplex ? 2 : 1
       const unexpectedPageCountChecks = checks.filter(
         (check) => check.page_count !== expectedPageCount,
       )
@@ -881,14 +873,14 @@ export default function ScanTab({
           <label className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
             <input
               type="checkbox"
-              checked={scanDuplex}
+              checked={isDuplex}
               disabled={isScanning}
               onChange={(event) => {
-                setScanDuplex(event.target.checked)
+                setIsDuplex(event.target.checked)
               }}
               className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 dark:border-slate-700 dark:bg-slate-950"
             />
-            Duplex
+            {isDuplex ? 'Çift Yüz' : 'Tek Yüz'}
           </label>
 
           <label className="space-y-1 text-sm">
@@ -981,238 +973,204 @@ export default function ScanTab({
         ) : (
           <div className="space-y-4">
             {sortedScannedChecks.map((check) => {
-                const checkKey = getCheckResultKey(check)
-                const preview = checkPreviews[checkKey]
-                const isPreviewLoading = preview?.isLoading ?? true
-                const front = preview?.front ?? EMPTY_IMAGE_PREVIEW
-                const back = preview?.back ?? EMPTY_IMAGE_PREVIEW
-                const checkHasBackPage = hasBackPage(check)
-                const frontPath = front.objectPath
-                const backPath = back.objectPath
-                const hasPreviewError = Boolean(preview?.error || front.error || (checkHasBackPage && back.error))
-                const isFrontPng = front.mimeType === 'image/png'
-                const isBackPng = back.mimeType === 'image/png'
-                const canRenderFront = Boolean(
-                  front.objectUrl && isFrontPng && isRenderableImageMimeType(front.mimeType) && !front.renderFailed,
-                )
-                const canRenderBack = Boolean(
-                  back.objectUrl && isBackPng && isRenderableImageMimeType(back.mimeType) && !back.renderFailed,
-                )
-                const scanSettings = [
-                  {
-                    key: 'duplex',
-                    label: 'Duplex',
-                    requested: formatDuplexLabel(check.duplex),
-                    effective: formatDuplexLabel(check.effective_duplex),
-                    status: getSettingStatus(check.duplex_verified, check.duplex === check.effective_duplex),
-                  },
-                  {
-                    key: 'dpi',
-                    label: 'DPI',
-                    requested: check.dpi > 0 ? check.dpi.toString() : '-',
-                    effective: check.effective_dpi > 0 ? check.effective_dpi.toString() : '-',
-                    status: getSettingStatus(check.dpi_verified, check.dpi === check.effective_dpi),
-                  },
-                  {
-                    key: 'color_mode',
-                    label: 'Renk Modu',
-                    requested: formatScanColorModeLabel(check.color_mode),
-                    effective: formatScanColorModeLabel(check.effective_color_mode),
-                    status: getSettingStatus(
-                      check.color_mode_verified,
-                      check.color_mode === check.effective_color_mode,
-                    ),
-                  },
-                ]
+              const checkKey = getCheckResultKey(check)
+              const storageDetails = checkStorageDetails[checkKey]
+              const isDetailsLoading = storageDetails?.isLoading ?? true
+              const metadata = storageDetails?.metadata
+              const micrData = firstNonEmpty(check.micr_data, metadata?.micr_data, check.micr) ?? '-'
+              const qrData = firstNonEmpty(check.qr_data, metadata?.qr_data, check.qr) ?? '-'
+              const micrNotRead = micrData === 'MICR_NOT_READ'
+              const qrNotRead = qrData === 'QR_NOT_READ'
+              const micrQrMatch = metadata?.micr_qr_match ?? check.micr_qr_match
+              const validationStatus = getCheckValidationStatus(micrQrMatch)
+              const frontImagePath = firstNonEmpty(
+                check.front_image_path,
+                metadata?.front_image_path,
+                storageDetails?.frontImagePath,
+              )
+              const backImagePath = firstNonEmpty(
+                check.back_image_path,
+                metadata?.back_image_path,
+                storageDetails?.backImagePath,
+              )
+              const scanSettings = [
+                {
+                  key: 'duplex',
+                  label: 'Duplex',
+                  requested: formatDuplexLabel(check.duplex),
+                  effective: formatDuplexLabel(check.effective_duplex),
+                  status: getSettingStatus(check.duplex_verified, check.duplex === check.effective_duplex),
+                },
+                {
+                  key: 'dpi',
+                  label: 'DPI',
+                  requested: check.dpi > 0 ? check.dpi.toString() : '-',
+                  effective: check.effective_dpi > 0 ? check.effective_dpi.toString() : '-',
+                  status: getSettingStatus(check.dpi_verified, check.dpi === check.effective_dpi),
+                },
+                {
+                  key: 'color_mode',
+                  label: 'Renk Modu',
+                  requested: formatScanColorModeLabel(check.color_mode),
+                  effective: formatScanColorModeLabel(check.effective_color_mode),
+                  status: getSettingStatus(
+                    check.color_mode_verified,
+                    check.color_mode === check.effective_color_mode,
+                  ),
+                },
+              ]
 
-                return (
-                  <article
-                    key={checkKey}
-                    className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="space-y-1">
-                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-                          Check No {check.check_no}
-                        </p>
-                        <p className="font-mono text-xs text-slate-600 dark:text-slate-400">
-                          {check.object_path || '-'}
-                        </p>
-                      </div>
+              return (
+                <article
+                  key={checkKey}
+                  className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                        Çek No {check.check_no}
+                      </p>
+                      <p className="break-all font-mono text-xs text-slate-600 dark:text-slate-400">
+                        {check.object_path || '-'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`inline-flex rounded-full border px-2 py-1 text-xs font-medium ${validationStatus.badgeClassName}`}
+                      >
+                        {validationStatus.label}
+                      </span>
                       <button
                         type="button"
-                        disabled={isPreviewLoading}
+                        disabled={isDetailsLoading}
                         onClick={() => {
-                          void loadCheckPreview(check, true)
+                          void loadCheckStorageDetails(check, true)
                         }}
                         className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
-                        {isPreviewLoading ? 'Yükleniyor…' : 'Önizlemeyi Yeniden Dene'}
+                        {isDetailsLoading ? 'Yenileniyor…' : 'Yolları Yenile'}
                       </button>
                     </div>
+                  </div>
 
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          MICR
-                        </p>
-                        <p className="mt-1 break-all text-sm text-slate-700 dark:text-slate-300">
-                          {check.micr || '-'}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          QR
-                        </p>
-                        <p className="mt-1 break-all text-sm text-slate-700 dark:text-slate-300">{check.qr || '-'}</p>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          MICR / QR Match
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                          {check.micr_qr_match ? 'Eşleşti' : 'Eşleşmedi'}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          Tarama Ayarları
-                        </p>
-                        <div className="mt-2 space-y-2">
-                          {scanSettings.map((setting) => (
-                            <div key={setting.key} className="rounded-md border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-950/50">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                  {setting.label}
-                                </p>
-                                <span
-                                  className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${setting.status.badgeClassName}`}
-                                >
-                                  {setting.status.label}
-                                </span>
-                              </div>
-                              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                                İstenen: <span className="font-medium text-slate-700 dark:text-slate-200">{setting.requested}</span>
-                              </p>
-                              <p className="text-xs text-slate-600 dark:text-slate-400">
-                                Uygulanan:{' '}
-                                <span className="font-medium text-slate-700 dark:text-slate-200">{setting.effective}</span>
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          Page Count
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                          {check.page_count.toString()}
-                        </p>
-                      </div>
-                    </div>
+                  {storageDetails?.error ? (
+                    <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                      {storageDetails.error}
+                    </p>
+                  ) : null}
 
-                    {hasPreviewError ? (
-                      <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
-                        {preview?.error ?? 'Önizleme kısmen yüklenemedi.'}
+                  <div className="flex flex-wrap gap-2">
+                    {micrNotRead ? (
+                      <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-300">
+                        MICR okunamadı
+                      </span>
+                    ) : null}
+                    {qrNotRead ? (
+                      <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-300">
+                        QR okunamadı
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        Doğrulama Verisi
                       </p>
-                    ) : null}
-
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/30">
-                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
-                          Ön Yüz
-                        </p>
-                        <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{frontPath || '-'}</p>
-                        {isPreviewLoading ? (
-                          <div className="h-44 animate-pulse rounded-md bg-slate-200 dark:bg-slate-800" />
-                        ) : canRenderFront ? (
-                          <img
-                            src={front.objectUrl ?? undefined}
-                            alt={`Check ${check.check_no.toString()} ön yüz`}
-                            onError={() => {
-                              markImageRenderFailed(checkKey, 'front')
-                            }}
-                            className="h-44 w-full rounded-md border border-slate-200 bg-white object-contain dark:border-slate-700 dark:bg-slate-900"
-                          />
-                        ) : front.objectUrl ? (
-                          <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                            <p>
-                              {isFrontPng
-                                ? 'Önizleme bu tarayıcıda render edilemedi.'
-                                : 'Legacy .bin kayıt: önizleme devre dışı, dosyayı indirebilirsiniz.'}
-                            </p>
-                            <a
-                              href={front.objectUrl}
-                              download={`check-${check.check_no.toString()}-front${isFrontPng ? '.png' : '.bin'}`}
-                              className="inline-flex rounded-md border border-slate-300 px-2 py-1 font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-                            >
-                              Dosyayı İndir
-                            </a>
-                          </div>
-                        ) : (
-                          <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                            {front.error ?? 'Ön yüz görseli bulunamadı.'}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/30">
-                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
-                          Arka Yüz
-                        </p>
-                        <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{backPath || '-'}</p>
-                        {isPreviewLoading ? (
-                          <div className="h-44 animate-pulse rounded-md bg-slate-200 dark:bg-slate-800" />
-                        ) : canRenderBack ? (
-                          <img
-                            src={back.objectUrl ?? undefined}
-                            alt={`Check ${check.check_no.toString()} arka yüz`}
-                            onError={() => {
-                              markImageRenderFailed(checkKey, 'back')
-                            }}
-                            className="h-44 w-full rounded-md border border-slate-200 bg-white object-contain dark:border-slate-700 dark:bg-slate-900"
-                          />
-                        ) : back.objectUrl ? (
-                          <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                            <p>
-                              {isBackPng
-                                ? 'Önizleme bu tarayıcıda render edilemedi.'
-                                : 'Legacy .bin kayıt: önizleme devre dışı, dosyayı indirebilirsiniz.'}
-                            </p>
-                            <a
-                              href={back.objectUrl}
-                              download={`check-${check.check_no.toString()}-back${isBackPng ? '.png' : '.bin'}`}
-                              className="inline-flex rounded-md border border-slate-300 px-2 py-1 font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-                            >
-                              Dosyayı İndir
-                            </a>
-                          </div>
-                        ) : (
-                          <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                            {back.error ?? 'Arka yüz yok.'}
-                          </div>
-                        )}
-                      </div>
+                      <p className="mt-2 font-mono text-xs text-slate-500 dark:text-slate-400">micr_data</p>
+                      <p className="break-all font-mono text-xs text-slate-700 dark:text-slate-300">{micrData}</p>
+                      <p className="mt-2 font-mono text-xs text-slate-500 dark:text-slate-400">qr_data</p>
+                      <p className="break-all font-mono text-xs text-slate-700 dark:text-slate-300">{qrData}</p>
+                      <p className="mt-2 font-mono text-xs text-slate-500 dark:text-slate-400">micr_qr_match</p>
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        {micrQrMatch ? 'Eşleşti' : 'Eşleşmedi'}
+                      </p>
                     </div>
 
-                    {preview?.metadataJson ? (
-                      <details className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-slate-600 dark:text-slate-300">
-                          metadata.json
-                        </summary>
-                        {preview.metadataPath ? (
-                          <p className="mt-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                            {preview.metadataPath}
-                          </p>
-                        ) : null}
-                        <pre className="mt-2 max-h-56 overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
-                          {preview.metadataJson}
-                        </pre>
-                      </details>
-                    ) : null}
-                  </article>
-                )
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        Depolama Referansları
+                      </p>
+                      {isDetailsLoading ? (
+                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                          Depolama yolları yükleniyor…
+                        </p>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          <div>
+                            <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400">front_image_path</p>
+                            <p className="break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                              {frontImagePath ?? '-'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400">back_image_path</p>
+                            <p className="break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                              {backImagePath ?? 'Arka yüz yok'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">metadata.json</p>
+                            <p className="break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                              {storageDetails?.metadataPath ?? '-'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        Tarama Özeti
+                      </p>
+                      <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                        Sayfa Sayısı:{' '}
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">
+                          {check.page_count.toString()}
+                        </span>
+                      </p>
+                      <div className="mt-2 space-y-2">
+                        {scanSettings.map((setting) => (
+                          <div
+                            key={setting.key}
+                            className="rounded-md border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-950/50"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                {setting.label}
+                              </p>
+                              <span
+                                className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${setting.status.badgeClassName}`}
+                              >
+                                {setting.status.label}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                              İstenen: {setting.requested} | Uygulanan: {setting.effective}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {storageDetails?.metadataJson ? (
+                    <details className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-slate-600 dark:text-slate-300">
+                        metadata.json
+                      </summary>
+                      {storageDetails.metadataPath ? (
+                        <p className="mt-2 break-all font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                          {storageDetails.metadataPath}
+                        </p>
+                      ) : null}
+                      <pre className="mt-2 max-h-56 overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
+                        {storageDetails.metadataJson}
+                      </pre>
+                    </details>
+                  ) : null}
+                </article>
+              )
             })}
           </div>
         )}

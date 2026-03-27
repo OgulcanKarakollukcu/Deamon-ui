@@ -63,6 +63,13 @@ export type CheckMetadata = {
   session_id: string
   bordro_id: string
   check_no: number
+  micr_data: string
+  qr_data: string
+  front_image_path: string
+  back_image_path: string
+  front_image_content_type: string
+  back_image_content_type: string
+  // Backward-compatible aliases used by existing UI blocks.
   micr: string
   qr: string
   page_count: number
@@ -79,6 +86,7 @@ export type CheckMetadata = {
   duplex_verified: boolean
   dpi_verified: boolean
   color_mode_verified: boolean
+  // Backward-compatible aliases used by existing storage helpers.
   front_path: string
   back_path: string
 }
