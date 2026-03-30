@@ -3,6 +3,7 @@ import type {
   ChequeMetadata,
   CreateBordroRequest,
   ScanColorMode,
+  ScanBordroProgress,
   ScanPageSize,
   Scanner,
 } from '../types'
@@ -284,6 +285,10 @@ type ParsedGrpcWebFrames = {
   messages: Uint8Array[]
   trailerStatus: string | null
   trailerMessage: string | null
+}
+
+type IncrementalGrpcWebFrames = ParsedGrpcWebFrames & {
+  remaining: Uint8Array
 }
 
 function parseGrpcWebFrames(payload: Uint8Array): ParsedGrpcWebFrames {
@@ -668,9 +673,11 @@ function parseScanChequeResponse(payload: Uint8Array): ProtoChequeMetadata {
   throw new Error('scanCheque response did not include metadata')
 }
 
-function parseScanBordroResponse(payload: Uint8Array): ProtoChequeMetadata[] {
+function parseScanBordroProgress(payload: Uint8Array): ProtoScanBordroProgress {
   let offset = 0
-  const cheques: ProtoChequeMetadata[] = []
+  let cheque: ProtoChequeMetadata | null = null
+  let completedCount = 0
+  let totalCount = 0
 
   while (offset < payload.length) {
     const tagInfo = decodeVarint(payload, offset)
@@ -681,7 +688,21 @@ function parseScanBordroResponse(payload: Uint8Array): ProtoChequeMetadata[] {
 
     if (fieldNumber === 1 && wireType === 2) {
       const value = readLengthDelimited(payload, offset)
-      cheques.push(parseChequeMetadata(value.value))
+      cheque = parseChequeMetadata(value.value)
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 2 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      completedCount = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 3 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      totalCount = value.value
       offset = value.offset
       continue
     }
@@ -689,7 +710,68 @@ function parseScanBordroResponse(payload: Uint8Array): ProtoChequeMetadata[] {
     offset = skipUnknownField(payload, offset, wireType)
   }
 
-  return cheques
+  return {
+    cheque,
+    completed_count: completedCount,
+    total_count: totalCount,
+  }
+}
+
+function parseGrpcWebFramesIncrementally(payload: Uint8Array): IncrementalGrpcWebFrames {
+  let offset = 0
+  const messages: Uint8Array[] = []
+  let trailerStatus: string | null = null
+  let trailerMessage: string | null = null
+
+  while (offset + GRPC_WEB_FRAME_HEADER_LEN <= payload.length) {
+    const frameFlag = payload[offset]
+    const frameLength = new DataView(
+      payload.buffer,
+      payload.byteOffset + offset + 1,
+      4,
+    ).getUint32(0, false)
+    const frameStart = offset + GRPC_WEB_FRAME_HEADER_LEN
+    const frameEnd = frameStart + frameLength
+
+    if (frameEnd > payload.length) {
+      break
+    }
+
+    const framePayload = payload.slice(frameStart, frameEnd)
+    if ((frameFlag & GRPC_WEB_TRAILER_FRAME_FLAG) === GRPC_WEB_TRAILER_FRAME_FLAG) {
+      const trailerText = decodeUtf8(framePayload)
+      const trailerLines = trailerText.split('\r\n')
+
+      for (const line of trailerLines) {
+        const separatorIndex = line.indexOf(':')
+        if (separatorIndex <= 0) {
+          continue
+        }
+
+        const key = line.slice(0, separatorIndex).trim().toLowerCase()
+        const rawValue = line.slice(separatorIndex + 1).trim()
+
+        if (key === 'grpc-status') {
+          trailerStatus = rawValue
+        }
+
+        if (key === 'grpc-message') {
+          trailerMessage = decodeGrpcMessage(rawValue)
+        }
+      }
+    } else {
+      messages.push(framePayload)
+    }
+
+    offset = frameEnd
+  }
+
+  return {
+    messages,
+    trailerStatus,
+    trailerMessage,
+    remaining: payload.slice(offset),
+  }
 }
 
 function parseBordroScanMetadata(payload: Uint8Array): ProtoBordroScanMetadata {
@@ -1123,6 +1205,98 @@ async function callGrpcWebServerStreaming(
   return response.messages
 }
 
+async function callGrpcWebServerStreamingLive(
+  method: string,
+  path: string,
+  encodedRequest: Uint8Array,
+  onMessage: (message: Uint8Array) => Promise<void> | void,
+): Promise<void> {
+  let response: Response
+
+  try {
+    const framedRequest = frameGrpcWebMessage(encodedRequest)
+    const framedRequestBody = framedRequest.buffer.slice(
+      framedRequest.byteOffset,
+      framedRequest.byteOffset + framedRequest.byteLength,
+    ) as ArrayBuffer
+
+    response = await fetch(`${BASE_URL}${path}`, {
+      method: 'POST',
+      headers: GRPC_WEB_BINARY_HEADERS,
+      body: framedRequestBody,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`${method} failed: 0 ${message}`)
+  }
+
+  if (response.body === null) {
+    const responseBody = new Uint8Array(await response.arrayBuffer())
+    const parsed = parseGrpcWebFrames(responseBody)
+    for (const message of parsed.messages) {
+      await onMessage(message)
+    }
+
+    const grpcStatus = parsed.trailerStatus ?? response.headers.get('grpc-status')
+    const grpcMessage =
+      parsed.trailerMessage ?? decodeGrpcMessage(response.headers.get('grpc-message'))
+
+    if (!response.ok) {
+      throw new Error(
+        `${method} failed: HTTP ${response.status.toString()}${grpcMessage ? ` ${grpcMessage}` : ''}`,
+      )
+    }
+
+    if (grpcStatus !== null && grpcStatus !== '0') {
+      throw new Error(
+        `${method} failed: gRPC ${grpcStatus}${grpcMessage ? ` ${grpcMessage}` : ''}`,
+      )
+    }
+    return
+  }
+
+  const reader = response.body.getReader()
+  let buffered = new Uint8Array()
+  let trailerStatus: string | null = null
+  let trailerMessage: string | null = null
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) {
+      break
+    }
+
+    buffered = new Uint8Array(concatBytes(value ? [buffered, value] : [buffered]))
+    const parsed = parseGrpcWebFramesIncrementally(buffered)
+    buffered = new Uint8Array(parsed.remaining)
+    trailerStatus = parsed.trailerStatus ?? trailerStatus
+    trailerMessage = parsed.trailerMessage ?? trailerMessage
+
+    for (const message of parsed.messages) {
+      await onMessage(message)
+    }
+  }
+
+  if (buffered.length > 0) {
+    throw new Error(`${method} failed: incomplete gRPC-Web stream payload`)
+  }
+
+  const grpcStatus = trailerStatus ?? response.headers.get('grpc-status')
+  const grpcMessage = trailerMessage ?? decodeGrpcMessage(response.headers.get('grpc-message'))
+
+  if (!response.ok) {
+    throw new Error(
+      `${method} failed: HTTP ${response.status.toString()}${grpcMessage ? ` ${grpcMessage}` : ''}`,
+    )
+  }
+
+  if (grpcStatus !== null && grpcStatus !== '0') {
+    throw new Error(
+      `${method} failed: gRPC ${grpcStatus}${grpcMessage ? ` ${grpcMessage}` : ''}`,
+    )
+  }
+}
+
 function encodeHealthChequeRequest(service: string): Uint8Array {
   if (service.trim().length === 0) {
     return new Uint8Array()
@@ -1226,6 +1400,12 @@ type ProtoBordroScanMetadata = {
   duplex_verified: boolean
   dpi_verified: boolean
   color_mode_verified: boolean
+}
+
+type ProtoScanBordroProgress = {
+  cheque: ProtoChequeMetadata | null
+  completed_count: number
+  total_count: number
 }
 
 function encodeScanBordroOptionsFields(params: {
@@ -1383,20 +1563,57 @@ export async function scanBordro(params: {
   color_mode: ScanColorMode
   page_size: ScanPageSize
 }): Promise<ChequeMetadata[]> {
-  const response = await callGrpcWebUnary(
+  const cheques: ChequeMetadata[] = []
+
+  await scanBordroStream({
+    ...params,
+    onProgress(progress) {
+      cheques.push(progress.cheque)
+    },
+  })
+
+  return [...cheques].sort((left, right) => left.cheque_no - right.cheque_no)
+}
+
+export async function scanBordroStream(params: {
+  scanner_id: string
+  session_id: string
+  bordro_id: string
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
+  page_size: ScanPageSize
+  onProgress?: (progress: ScanBordroProgress) => Promise<void> | void
+}): Promise<void> {
+  await callGrpcWebServerStreamingLive(
     'scanBordro',
     SCAN_BORDRO_PATH,
     encodeScanBordroRequest(params),
-  )
+    async (message) => {
+      const progress = parseScanBordroProgress(message)
+      if (progress.cheque === null) {
+        return
+      }
 
-  return parseScanBordroResponse(response)
-    .map((metadata, index) =>
-      mapProtoMetadataToUi(metadata, {
-        ...params,
-        cheque_no: index + 1,
-      }),
-    )
-    .sort((left, right) => left.cheque_no - right.cheque_no)
+      const mappedCheque = mapProtoMetadataToUi(progress.cheque, {
+        scanner_id: params.scanner_id,
+        session_id: params.session_id,
+        bordro_id: params.bordro_id,
+        cheque_no:
+          Number.parseInt(progress.cheque.cheque_no, 10) || progress.completed_count || 1,
+        duplex: params.duplex,
+        dpi: params.dpi,
+        color_mode: params.color_mode,
+        page_size: params.page_size,
+      })
+
+      await params.onProgress?.({
+        cheque: mappedCheque,
+        completed_count: progress.completed_count,
+        total_count: progress.total_count,
+      })
+    },
+  )
 }
 
 export async function scanBordroDocument(params: {

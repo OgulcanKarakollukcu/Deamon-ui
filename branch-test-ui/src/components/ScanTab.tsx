@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, RefreshCcw, ScanLine } from 'lucide-react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ImageIcon, Loader2, RefreshCcw, ScanLine } from 'lucide-react'
 import { useLogContext } from '../context/LogContext'
 import {
   getStorageObject,
@@ -8,7 +8,7 @@ import {
   releaseScanner,
   reserveScanner,
   resolveStorageObjectPaths,
-  scanBordro,
+  scanBordroStream,
 } from '../services/branchClient'
 import type { ChequeMetadata, ScanColorMode, ScanPageSize, Scanner } from '../types'
 
@@ -48,11 +48,20 @@ type ParsedChequeStorageMetadata = {
   back_image_path: string | null
 }
 
+type ImageDimensions = {
+  width: number
+  height: number
+}
+
 type ChequeStorageState = {
   isLoading: boolean
   error: string | null
   frontImagePath: string | null
   backImagePath: string | null
+  frontPreviewUrl: string | null
+  backPreviewUrl: string | null
+  frontImageDimensions: ImageDimensions | null
+  backImageDimensions: ImageDimensions | null
   frontImageSizeLabel: string | null
   backImageSizeLabel: string | null
   metadataPath: string | null
@@ -66,6 +75,10 @@ function createInitialChequeStorageState(): ChequeStorageState {
     error: null,
     frontImagePath: null,
     backImagePath: null,
+    frontPreviewUrl: null,
+    backPreviewUrl: null,
+    frontImageDimensions: null,
+    backImageDimensions: null,
     frontImageSizeLabel: null,
     backImageSizeLabel: null,
     metadataPath: null,
@@ -102,7 +115,7 @@ const SCAN_COLOR_MODE_OPTIONS: Array<{ value: ScanColorMode; label: string }> = 
   { value: 'BLACK_AND_WHITE', label: 'Siyah-Beyaz' },
 ]
 const SCAN_PAGE_SIZE_OPTIONS: Array<{ value: ScanPageSize; label: string }> = [
-  { value: 'CHEQUE', label: 'Cek' },
+  { value: 'CHEQUE', label: 'Çek' },
   { value: 'A4', label: 'A4' },
 ]
 const DEFAULT_SCAN_SETTINGS: ScanSettings = {
@@ -244,6 +257,80 @@ function formatByteSize(byteLength: number): string {
   return `${(byteLength / (1024 * 1024)).toFixed(2)} MB`
 }
 
+function inferImageMimeType(path: string | null): string | null {
+  const normalizedPath = path?.trim().toLowerCase() ?? ''
+  if (normalizedPath.endsWith('.png')) {
+    return 'image/png'
+  }
+
+  if (normalizedPath.endsWith('.jpg') || normalizedPath.endsWith('.jpeg')) {
+    return 'image/jpeg'
+  }
+
+  return null
+}
+
+function isRenderableImageMimeType(mimeType: string | null): boolean {
+  return mimeType !== null && mimeType.startsWith('image/')
+}
+
+async function readImageDimensions(
+  blob: Blob,
+  mimeType: string,
+): Promise<ImageDimensions | null> {
+  if (!mimeType.startsWith('image/')) {
+    return null
+  }
+
+  if (typeof globalThis.createImageBitmap === 'function') {
+    try {
+      const bitmap = await globalThis.createImageBitmap(blob)
+      const dimensions = {
+        width: bitmap.width,
+        height: bitmap.height,
+      }
+      bitmap.close()
+      return dimensions
+    } catch {
+      // Fall back to Image decoding below.
+    }
+  }
+
+  return await new Promise((resolve) => {
+    const objectUrl = URL.createObjectURL(blob)
+    const image = new Image()
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve({
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+      })
+    }
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve(null)
+    }
+
+    image.src = objectUrl
+  })
+}
+
+function formatDimensionsLabel(dimensions: ImageDimensions | null): string | null {
+  if (dimensions === null) {
+    return null
+  }
+
+  return `${dimensions.width.toString()} x ${dimensions.height.toString()} px`
+}
+
+function revokePreviewUrl(url: string | null): void {
+  if (url) {
+    URL.revokeObjectURL(url)
+  }
+}
+
 function parseChequeStorageMetadata(payload: Uint8Array): {
   metadataJson: string | null
   metadata: ParsedChequeStorageMetadata | null
@@ -308,7 +395,7 @@ function getChequeValidationStatus(isMatch: boolean): { label: string; badgeClas
 
 export default function ScanTab({
   activeBordroId,
-  expectedChequeCount = null,
+  expectedChequeCount: expectedChequeCountProp = null,
   initialScannedCheques = [],
   initialScanSettings,
   onScannedChequeCountChange,
@@ -317,6 +404,7 @@ export default function ScanTab({
   onReservationStateChange,
 }: ScanTabProps) {
   const { addLog } = useLogContext()
+  const expectedChequeCount = expectedChequeCountProp ?? 0
   const [sessionId] = useState<string>(() => getStableSessionId())
   const [scanners, setScanners] = useState<Scanner[]>([])
   const [selectedScannerKey, setSelectedScannerKey] = useState<string | null>(null)
@@ -341,9 +429,14 @@ export default function ScanTab({
   const [isReserving, setIsReserving] = useState<boolean>(false)
   const [isReleasing, setIsReleasing] = useState<boolean>(false)
   const [isScanning, setIsScanning] = useState<boolean>(false)
+  const [scanCompletedCount, setScanCompletedCount] = useState<number>(0)
+  const [scanTotalCount, setScanTotalCount] = useState<number>(expectedChequeCount ?? 0)
+  const [latestCompletedChequeNo, setLatestCompletedChequeNo] = useState<number | null>(null)
+  const [selectedChequeKey, setSelectedChequeKey] = useState<string | null>(null)
   const [chequeStorageDetails, setChequeStorageDetails] = useState<Record<string, ChequeStorageState>>(
     {},
   )
+  const chequeStorageDetailsRef = useRef<Record<string, ChequeStorageState>>({})
 
   const activeScanner = useMemo(() => {
     if (selectedScannerKey === null) {
@@ -359,6 +452,22 @@ export default function ScanTab({
     () => [...scannedCheques].sort((left, right) => left.cheque_no - right.cheque_no),
     [scannedCheques],
   )
+  const selectedCheque = useMemo(() => {
+    if (selectedChequeKey === null) {
+      return null
+    }
+
+    return sortedScannedCheques.find((cheque) => getChequeResultKey(cheque) === selectedChequeKey) ?? null
+  }, [selectedChequeKey, sortedScannedCheques])
+  const selectedChequeStorageDetails =
+    selectedCheque ? chequeStorageDetails[getChequeResultKey(selectedCheque)] ?? null : null
+  const effectiveExpectedChequeCount = scanTotalCount > 0 ? scanTotalCount : expectedChequeCount ?? 0
+  const progressPercent = effectiveExpectedChequeCount > 0
+    ? Math.min(100, Math.round((sortedScannedCheques.length / effectiveExpectedChequeCount) * 100))
+    : 0
+  const remainingChequeCount = effectiveExpectedChequeCount > sortedScannedCheques.length
+    ? effectiveExpectedChequeCount - sortedScannedCheques.length
+    : 0
 
   useEffect(() => {
     setIsDuplex(initialScanSettings?.duplex ?? DEFAULT_SCAN_SETTINGS.duplex)
@@ -398,21 +507,78 @@ export default function ScanTab({
     })
   }, [isReserved, onReservationStateChange, reservationScannerId, sessionId])
 
+  useEffect(() => {
+    chequeStorageDetailsRef.current = chequeStorageDetails
+  }, [chequeStorageDetails])
+
+  useEffect(() => {
+    setScanTotalCount(expectedChequeCount ?? 0)
+  }, [expectedChequeCount])
+
+  useEffect(() => {
+    setSelectedChequeKey((previousKey) => {
+      if (sortedScannedCheques.length === 0) {
+        return null
+      }
+
+      if (isScanning) {
+        return getChequeResultKey(sortedScannedCheques[sortedScannedCheques.length - 1])
+      }
+
+      if (
+        previousKey !== null &&
+        sortedScannedCheques.some((cheque) => getChequeResultKey(cheque) === previousKey)
+      ) {
+        return previousKey
+      }
+
+      return getChequeResultKey(sortedScannedCheques[sortedScannedCheques.length - 1])
+    })
+  }, [isScanning, sortedScannedCheques])
+
+  useEffect(() => {
+    return () => {
+      for (const details of Object.values(chequeStorageDetailsRef.current)) {
+        revokePreviewUrl(details.frontPreviewUrl)
+        revokePreviewUrl(details.backPreviewUrl)
+      }
+    }
+  }, [])
+
   const updateChequeStorageState = useCallback(
     (
       chequeKey: string,
       updater: (previous: ChequeStorageState | undefined) => ChequeStorageState,
     ): void => {
-      setChequeStorageDetails((previousDetails) => ({
-        ...previousDetails,
-        [chequeKey]: updater(previousDetails[chequeKey]),
-      }))
+      setChequeStorageDetails((previousDetails) => {
+        const previousState = previousDetails[chequeKey]
+        const nextState = updater(previousState)
+
+        if (previousState && previousState.frontPreviewUrl !== nextState.frontPreviewUrl) {
+          revokePreviewUrl(previousState.frontPreviewUrl)
+        }
+        if (previousState && previousState.backPreviewUrl !== nextState.backPreviewUrl) {
+          revokePreviewUrl(previousState.backPreviewUrl)
+        }
+
+        return {
+          ...previousDetails,
+          [chequeKey]: nextState,
+        }
+      })
     },
     [],
   )
 
   const clearAllChequeStorageDetails = useCallback((): void => {
-    setChequeStorageDetails({})
+    setChequeStorageDetails((previousDetails) => {
+      for (const details of Object.values(previousDetails)) {
+        revokePreviewUrl(details.frontPreviewUrl)
+        revokePreviewUrl(details.backPreviewUrl)
+      }
+
+      return {}
+    })
   }, [])
 
   const loadChequeStorageDetails = useCallback(
@@ -476,12 +642,32 @@ export default function ScanTab({
           cheque.back_image_path,
           parsedMetadata?.back_image_path,
         )
-        const frontImageSizeLabel = frontImagePath
-          ? formatByteSize((await getStorageObject(frontImagePath)).length)
+        const frontImageMimeType = inferImageMimeType(frontImagePath)
+        const backImageMimeType = inferImageMimeType(backImagePath)
+        const frontImagePayload = frontImagePath ? await getStorageObject(frontImagePath) : null
+        const backImagePayload = backImagePath ? await getStorageObject(backImagePath) : null
+        const frontImageSizeLabel = frontImagePayload
+          ? formatByteSize(frontImagePayload.length)
           : null
-        const backImageSizeLabel = backImagePath
-          ? formatByteSize((await getStorageObject(backImagePath)).length)
+        const backImageSizeLabel = backImagePayload
+          ? formatByteSize(backImagePayload.length)
           : null
+        const frontPreviewBlob = frontImagePayload && isRenderableImageMimeType(frontImageMimeType)
+          ? new Blob([new Uint8Array(frontImagePayload)], { type: frontImageMimeType ?? undefined })
+          : null
+        const backPreviewBlob = backImagePayload && isRenderableImageMimeType(backImageMimeType)
+          ? new Blob([new Uint8Array(backImagePayload)], { type: backImageMimeType ?? undefined })
+          : null
+        const frontPreviewUrl = frontPreviewBlob ? URL.createObjectURL(frontPreviewBlob) : null
+        const backPreviewUrl = backPreviewBlob ? URL.createObjectURL(backPreviewBlob) : null
+        const frontImageDimensions =
+          frontPreviewBlob && frontImageMimeType
+            ? await readImageDimensions(frontPreviewBlob, frontImageMimeType)
+            : null
+        const backImageDimensions =
+          backPreviewBlob && backImageMimeType
+            ? await readImageDimensions(backPreviewBlob, backImageMimeType)
+            : null
 
         setScannedCheques((previousCheques) => {
           let hasChanges = false
@@ -523,6 +709,10 @@ export default function ScanTab({
           error: null,
           frontImagePath,
           backImagePath,
+          frontPreviewUrl,
+          backPreviewUrl,
+          frontImageDimensions,
+          backImageDimensions,
           frontImageSizeLabel,
           backImageSizeLabel,
           metadataPath,
@@ -670,8 +860,12 @@ export default function ScanTab({
     const colorMode = scanColorMode
     const pageSize = scanPageSize
     setIsScanning(true)
+    setScanCompletedCount(0)
+    setScanTotalCount(expectedChequeCount ?? 0)
+    setLatestCompletedChequeNo(null)
 
     try {
+      const completedCheques: ChequeMetadata[] = []
       console.log('scan request', {
         duplex: isDuplex,
         dpi,
@@ -684,7 +878,9 @@ export default function ScanTab({
         'info',
         `İstek: scanBordro {scanner_id:${scannerId}, session_id:${sessionId}, bordro_id:${bordroId}, duplex:${isDuplex ? 'true' : 'false'}, dpi:${dpi.toString()}, color_mode:${colorMode}, page_size:${pageSize}}`,
       )
-      const cheques = await scanBordro({
+      clearAllChequeStorageDetails()
+      setScannedCheques([])
+      await scanBordroStream({
         scanner_id: scannerId,
         session_id: sessionId,
         bordro_id: bordroId,
@@ -692,12 +888,33 @@ export default function ScanTab({
         dpi,
         color_mode: colorMode,
         page_size: pageSize,
-      })
-      clearAllChequeStorageDetails()
-      setScannedCheques(cheques)
-      addLog('info', `Yanıt: scanBordro cheques=${cheques.length.toString()}`)
+        onProgress(progress) {
+          completedCheques.push(progress.cheque)
+          setScanCompletedCount(progress.completed_count)
+          setScanTotalCount(progress.total_count)
+          setLatestCompletedChequeNo(progress.cheque.cheque_no)
+          setSelectedChequeKey(getChequeResultKey(progress.cheque))
+          setScannedCheques((previousCheques) => {
+            const existingIndex = previousCheques.findIndex(
+              (currentCheque) => currentCheque.cheque_no === progress.cheque.cheque_no,
+            )
+            if (existingIndex < 0) {
+              return [...previousCheques, progress.cheque]
+            }
 
-      if (cheques.length === 0) {
+            const nextCheques = [...previousCheques]
+            nextCheques[existingIndex] = progress.cheque
+            return nextCheques
+          })
+          addLog(
+            'info',
+            `Yanıt: scanBordro cheque_no=${progress.cheque.cheque_no.toString()} tamamlandı (${progress.completed_count.toString()}/${progress.total_count.toString()})`,
+          )
+        },
+      })
+      addLog('info', `Yanıt: scanBordro cheques=${completedCheques.length.toString()}`)
+
+      if (completedCheques.length === 0) {
         const emptyResultMessage =
           'Bordro için taranacak çek bulunamadı. Muhtemelen bordro cheque_count=0 oluşturuldu.'
         setError(emptyResultMessage)
@@ -706,7 +923,7 @@ export default function ScanTab({
       }
 
       const expectedPageCount = isDuplex ? 2 : 1
-      const unexpectedPageCountCheques = cheques.filter(
+      const unexpectedPageCountCheques = completedCheques.filter(
         (cheque) => cheque.page_count !== expectedPageCount,
       )
       if (unexpectedPageCountCheques.length > 0) {
@@ -1023,8 +1240,8 @@ export default function ScanTab({
 
           {isScanning ? (
             <p className="w-full text-xs text-cyan-700 dark:text-cyan-300">
-              {expectedChequeCount && expectedChequeCount > 0
-                ? `${expectedChequeCount.toString()} çek taranıyor, lütfen bekleyin…`
+              {effectiveExpectedChequeCount > 0
+                ? `${sortedScannedCheques.length.toString()}/${expectedChequeCount.toString()} çek hazır, tarama devam ediyor…`
                 : 'Bordrodaki çekler taranıyor, lütfen bekleyin…'}
             </p>
           ) : (
@@ -1041,7 +1258,7 @@ export default function ScanTab({
         </p>
       ) : null}
 
-      <section className="space-y-3">
+      <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Tarama Sonuçları</h3>
           <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
@@ -1049,7 +1266,188 @@ export default function ScanTab({
           </span>
         </div>
 
-        {sortedScannedCheques.length === 0 ? (
+        {(isScanning || sortedScannedCheques.length > 0) ? (
+          <div className="overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-amber-50 p-4 shadow-sm dark:border-cyan-500/30 dark:from-cyan-500/10 dark:via-slate-950 dark:to-amber-500/10">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
+                  Canlı Akış
+                </p>
+                <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {isScanning ? 'İlk tamamlanan çekler hazır, tarama akıyor.' : 'Tarama tamamlandı.'}
+                </h4>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  {effectiveExpectedChequeCount > 0
+                    ? `${scanCompletedCount.toString()}/${effectiveExpectedChequeCount.toString()} çek işlendi.`
+                    : `${sortedScannedCheques.length.toString()} çek hazır.`}
+                </p>
+                {latestCompletedChequeNo !== null ? (
+                  <p className="text-xs font-medium text-cyan-700 dark:text-cyan-300">
+                    Son tamamlanan çek: {latestCompletedChequeNo.toString()}
+                  </p>
+                ) : null}
+              </div>
+              <div className="grid min-w-[220px] gap-2 sm:grid-cols-3">
+                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                    Hazır
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                    {sortedScannedCheques.length.toString()}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                    Kalan
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                    {remainingChequeCount.toString()}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                    İlerleme
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                    %{progressPercent.toString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-800">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-emerald-500 transition-all duration-500"
+                style={{ width: `${progressPercent.toString()}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {selectedCheque ? (
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.9fr)]">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                    Aktif Önizleme
+                  </p>
+                  <h4 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
+                    Çek {selectedCheque.cheque_no.toString()}
+                  </h4>
+                </div>
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  Rahat İnceleme
+                </span>
+              </div>
+              <div className="grid gap-4 p-4 lg:grid-cols-2">
+                {[
+                  {
+                    key: 'front',
+                    label: 'Ön Yüz',
+                    previewUrl: selectedChequeStorageDetails?.frontPreviewUrl ?? null,
+                    sizeLabel: selectedChequeStorageDetails?.frontImageSizeLabel ?? null,
+                    dimensionsLabel: formatDimensionsLabel(selectedChequeStorageDetails?.frontImageDimensions ?? null),
+                    path: firstNonEmpty(selectedCheque.front_image_path, selectedChequeStorageDetails?.frontImagePath),
+                    emptyLabel: 'Ön yüz yükleniyor…',
+                  },
+                  {
+                    key: 'back',
+                    label: 'Arka Yüz',
+                    previewUrl: selectedChequeStorageDetails?.backPreviewUrl ?? null,
+                    sizeLabel: selectedChequeStorageDetails?.backImageSizeLabel ?? null,
+                    dimensionsLabel: formatDimensionsLabel(selectedChequeStorageDetails?.backImageDimensions ?? null),
+                    path: firstNonEmpty(selectedCheque.back_image_path, selectedChequeStorageDetails?.backImagePath),
+                    emptyLabel: selectedCheque.page_count > 1 ? 'Arka yüz yükleniyor…' : 'Arka yüz yok',
+                  },
+                ].map((preview) => (
+                  <div
+                    key={preview.key}
+                    className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {preview.label}
+                      </p>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {preview.dimensionsLabel ?? preview.sizeLabel ?? 'Hazırlanıyor'}
+                      </span>
+                    </div>
+                    <div className="flex min-h-[260px] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                      {preview.previewUrl ? (
+                        <img
+                          src={preview.previewUrl}
+                          alt={`${preview.label} - Çek ${selectedCheque.cheque_no.toString()}`}
+                          className="max-h-[420px] w-full rounded-lg object-contain"
+                        />
+                      ) : (
+                        <div className="space-y-2 text-center">
+                          <ImageIcon className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-700" />
+                          <p className="text-sm text-slate-500 dark:text-slate-400">{preview.emptyLabel}</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                      <span className="rounded-full border border-slate-200 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-900">
+                        Boyut: {preview.sizeLabel ?? '-'}
+                      </span>
+                      <span className="rounded-full border border-slate-200 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-900">
+                        Ölçü: {preview.dimensionsLabel ?? '-'}
+                      </span>
+                    </div>
+                    <p className="break-all font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                      {preview.path ?? '-'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                  İnceleme Özeti
+                </p>
+                <h4 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
+                  Çek {selectedCheque.cheque_no.toString()} detayları
+                </h4>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                    MICR
+                  </p>
+                  <p className="mt-2 break-all font-mono text-xs text-slate-700 dark:text-slate-300">
+                    {firstNonEmpty(selectedCheque.micr_data, selectedCheque.micr) ?? '-'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                    QR
+                  </p>
+                  <p className="mt-2 break-all font-mono text-xs text-slate-700 dark:text-slate-300">
+                    {firstNonEmpty(selectedCheque.qr_data, selectedCheque.qr) ?? '-'}
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                  Storage
+                </p>
+                <p className="mt-2 break-all font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                  {selectedCheque.object_path || '-'}
+                </p>
+              </div>
+              {selectedChequeStorageDetails?.isLoading ? (
+                <div className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-700 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300">
+                  Önizleme asset'leri hazırlanıyor…
+                </div>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {sortedScannedCheques.length === 0 && !isScanning ? (
           <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400">
             Henüz çek taranmadı.
           </p>
@@ -1115,7 +1513,11 @@ export default function ScanTab({
               return (
                 <article
                   key={chequeKey}
-                  className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40"
+                  className={`space-y-3 rounded-2xl border p-4 transition ${
+                    selectedChequeKey === chequeKey
+                      ? 'border-cyan-300 bg-cyan-50/50 shadow-sm dark:border-cyan-500/40 dark:bg-cyan-500/5'
+                      : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40'
+                  }`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0 space-y-1">
@@ -1127,6 +1529,19 @@ export default function ScanTab({
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedChequeKey(chequeKey)
+                        }}
+                        className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+                          selectedChequeKey === chequeKey
+                            ? 'border-cyan-300 bg-cyan-100 text-cyan-800 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300'
+                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        {selectedChequeKey === chequeKey ? 'Önizleniyor' : 'Önizle'}
+                      </button>
                       <span
                         className={`inline-flex rounded-full border px-2 py-1 text-xs font-medium ${validationStatus.badgeClassName}`}
                       >
@@ -1279,6 +1694,30 @@ export default function ScanTab({
                 </article>
               )
             })}
+            {isScanning && remainingChequeCount > 0
+              ? Array.from({ length: Math.min(remainingChequeCount, 3) }, (_, index) => (
+                  <article
+                    key={`pending-${index.toString()}`}
+                    className="space-y-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/30"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="space-y-2">
+                        <div className="h-3 w-24 rounded-full bg-slate-200 dark:bg-slate-800" />
+                        <div className="h-3 w-52 rounded-full bg-slate-200 dark:bg-slate-800" />
+                      </div>
+                      <Loader2 className="h-4 w-4 animate-spin text-cyan-600 dark:text-cyan-400" />
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="h-24 rounded-xl bg-slate-200/70 dark:bg-slate-800/70" />
+                      <div className="h-24 rounded-xl bg-slate-200/70 dark:bg-slate-800/70" />
+                      <div className="h-24 rounded-xl bg-slate-200/70 dark:bg-slate-800/70" />
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Sıradaki çekler taranıyor ve işleniyor…
+                    </p>
+                  </article>
+                ))
+              : null}
           </div>
         )}
       </section>

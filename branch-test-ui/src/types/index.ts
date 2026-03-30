@@ -110,6 +110,12 @@ export type ChequeMetadata = {
   back_path: string
 }
 
+export type ScanBordroProgress = {
+  cheque: ChequeMetadata
+  completed_count: number
+  total_count: number
+}
+
 export type LogEntry = {
   id: number
   ts: string
