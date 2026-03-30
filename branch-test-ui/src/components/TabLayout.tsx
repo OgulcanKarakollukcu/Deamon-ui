@@ -1,6 +1,6 @@
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
 import clsx from 'clsx'
-import { Database, FileText, History, LayoutDashboard, Menu, Moon, ScanLine, Server, Sun } from 'lucide-react'
+import { Database, FileText, FileUp, History, LayoutDashboard, Menu, Moon, ScanLine, Server, Sun } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { Tab as AppTab } from '../types'
 
@@ -14,6 +14,7 @@ type TabLayoutProps = {
   dashboardContent?: ReactNode
   bordroContent?: ReactNode
   bordroScanContent?: ReactNode
+  documentScanContent?: ReactNode
   logsContent?: ReactNode
   contentDisabled?: boolean
   contentOverlay?: ReactNode
@@ -23,6 +24,7 @@ const tabs: Array<{ id: AppTab; label: string; icon: typeof LayoutDashboard }> =
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'bordro', label: 'Bordro', icon: FileText },
   { id: 'bordroScan', label: 'Bordro Tarama', icon: ScanLine },
+  { id: 'document-scan', label: 'Doküman Tara', icon: FileUp },
   { id: 'logs', label: 'Logs', icon: History },
 ]
 
@@ -30,6 +32,7 @@ const tabTitleMap: Record<AppTab, string> = {
   dashboard: 'Dashboard',
   bordro: 'Bordro',
   bordroScan: 'Bordro Tarama',
+  'document-scan': 'Doküman Tarama',
   logs: 'Log Kayıtları',
 }
 
@@ -43,6 +46,7 @@ export function TabLayout({
   dashboardContent,
   bordroContent,
   bordroScanContent,
+  documentScanContent,
   logsContent,
   contentDisabled = false,
   contentOverlay,
@@ -225,6 +229,10 @@ export function TabLayout({
                   </TabPanel>
                   <TabPanel unmount={false} className="h-full min-h-0 overflow-auto">
                     {bordroScanContent ?? <div>Bordro tarama placeholder</div>}
+                    {documentScanContent ?? <div>Document scan placeholder</div>}
+                  </TabPanel>
+                  <TabPanel unmount={false} className="h-full min-h-0 overflow-auto">
+                    {documentScanContent ?? <div>Document scan placeholder</div>}
                   </TabPanel>
                   <TabPanel unmount={false} className="h-full min-h-0 overflow-auto">
                     {logsContent ?? <div>Logs placeholder</div>}

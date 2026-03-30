@@ -2,6 +2,8 @@ import type {
   BordroScanMetadata,
   ChequeMetadata,
   CreateBordroRequest,
+  DocumentScanMetadata,
+  DocumentType,
   ScanColorMode,
   ScanBordroProgress,
   ScanPageSize,
@@ -36,6 +38,7 @@ const CREATE_BORDRO_PATH = '/daemon.cheque.ChequeService/CreateBordro'
 const SCAN_CHEQUE_PATH = '/daemon.cheque.ChequeService/ScanCheque'
 const SCAN_BORDRO_PATH = '/daemon.cheque.ChequeService/ScanBordro'
 const SCAN_SERVICE_SCAN_BORDRO_PATH = '/daemon.scan.ScanService/ScanBordro'
+const SCAN_DOCUMENT_PATH = '/daemon.scan.ScanService/ScanDocument'
 const STORAGE_LIST_OBJECTS_PATH = '/daemon.storage.StorageService/ListObjects'
 const STORAGE_GET_OBJECT_PATH = '/daemon.storage.StorageService/GetObject'
 const HEALTH_CHECK_PATH = '/grpc.health.v1.Health/Check'
@@ -74,6 +77,33 @@ type ProtoChequeMetadata = {
 
 type PcDaemonStatus = 'available' | 'reserved' | 'unavailable'
 
+type ProtoDocumentPageMetadata = {
+  sheet_index: number
+  front_image_path: string
+  front_image_content_type: string
+  back_image_path: string | null
+  back_image_content_type: string | null
+}
+
+type ProtoDocumentScanMetadata = {
+  document_id: string
+  document_type: number
+  object_path: string
+  sheet_count: number
+  page_count: number
+  pages: ProtoDocumentPageMetadata[]
+  duplex: boolean
+  dpi: number
+  color_mode: number
+  page_size: number
+  effective_duplex: boolean
+  effective_dpi: number
+  effective_color_mode: number
+  duplex_verified: boolean
+  dpi_verified: boolean
+  color_mode_verified: boolean
+}
+
 export type StorageObjectPaths = {
   front_path: string | null
   front_is_png: boolean
@@ -103,18 +133,6 @@ function mapScanColorModeToProto(mode: ScanColorMode): number {
   return 0
 }
 
-function mapScanPageSizeToProto(pageSize: ScanPageSize): number {
-  if (pageSize === 'CHEQUE') {
-    return 1
-  }
-
-  if (pageSize === 'A4') {
-    return 2
-  }
-
-  return 0
-}
-
 function mapProtoScanColorModeToUi(mode: number): ScanColorMode {
   if (mode === 1) {
     return 'COLOR'
@@ -126,6 +144,46 @@ function mapProtoScanColorModeToUi(mode: number): ScanColorMode {
 
   if (mode === 3) {
     return 'BLACK_AND_WHITE'
+  }
+
+  return 'UNSPECIFIED'
+}
+
+function mapScanPageSizeToProto(size: ScanPageSize): number {
+  if (size === 'CHEQUE') {
+    return 1
+  }
+
+  if (size === 'A4') {
+    return 2
+  }
+
+  return 0
+}
+
+function mapProtoScanPageSizeToUi(size: number): ScanPageSize {
+  if (size === 1) {
+    return 'CHEQUE'
+  }
+
+  if (size === 2) {
+    return 'A4'
+  }
+
+  return 'UNSPECIFIED'
+}
+
+function mapDocumentTypeToProto(type: DocumentType): number {
+  if (type === 'GENERIC') {
+    return 1
+  }
+
+  return 0
+}
+
+function mapProtoDocumentTypeToUi(type: number): DocumentType {
+  if (type === 1) {
+    return 'GENERIC'
   }
 
   return 'UNSPECIFIED'
@@ -909,6 +967,184 @@ function parseScanServiceBordroResponse(payload: Uint8Array): ProtoBordroScanMet
   throw new Error('scanServiceScanBordro response did not include metadata')
 }
 
+function parseDocumentPageMetadata(payload: Uint8Array): ProtoDocumentPageMetadata {
+  let offset = 0
+  const metadata: ProtoDocumentPageMetadata = {
+    sheet_index: 0,
+    front_image_path: '',
+    front_image_content_type: '',
+    back_image_path: null,
+    back_image_content_type: null,
+  }
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (fieldNumber === 1 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.sheet_index = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      const decoded = decodeUtf8(value.value)
+
+      if (fieldNumber === 2) {
+        metadata.front_image_path = decoded
+      } else if (fieldNumber === 3) {
+        metadata.front_image_content_type = decoded
+      } else if (fieldNumber === 4) {
+        metadata.back_image_path = decoded
+      } else if (fieldNumber === 5) {
+        metadata.back_image_content_type = decoded
+      }
+
+      offset = value.offset
+      continue
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  return metadata
+}
+
+function parseDocumentScanMetadata(payload: Uint8Array): ProtoDocumentScanMetadata {
+  let offset = 0
+  const metadata: ProtoDocumentScanMetadata = {
+    document_id: '',
+    document_type: 0,
+    object_path: '',
+    sheet_count: 0,
+    page_count: 0,
+    pages: [],
+    duplex: false,
+    dpi: 0,
+    color_mode: 0,
+    page_size: 0,
+    effective_duplex: false,
+    effective_dpi: 0,
+    effective_color_mode: 0,
+    duplex_verified: false,
+    dpi_verified: false,
+    color_mode_verified: false,
+  }
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      const decoded = decodeUtf8(value.value)
+
+      if (fieldNumber === 1) {
+        metadata.document_id = decoded
+      } else if (fieldNumber === 3) {
+        metadata.object_path = decoded
+      } else if (fieldNumber === 6) {
+        metadata.pages.push(parseDocumentPageMetadata(value.value))
+      }
+
+      offset = value.offset
+      continue
+    }
+
+    if (wireType === 0) {
+      const value = decodeVarint(payload, offset)
+
+      if (fieldNumber === 2) {
+        metadata.document_type = value.value
+      } else if (fieldNumber === 4) {
+        metadata.sheet_count = value.value
+      } else if (fieldNumber === 5) {
+        metadata.page_count = value.value
+      } else if (fieldNumber === 7) {
+        metadata.duplex = value.value !== 0
+      } else if (fieldNumber === 8) {
+        metadata.dpi = value.value
+      } else if (fieldNumber === 9) {
+        metadata.color_mode = value.value
+      } else if (fieldNumber === 10) {
+        metadata.page_size = value.value
+      } else if (fieldNumber === 11) {
+        metadata.effective_duplex = value.value !== 0
+      } else if (fieldNumber === 12) {
+        metadata.effective_dpi = value.value
+      } else if (fieldNumber === 13) {
+        metadata.effective_color_mode = value.value
+      } else if (fieldNumber === 14) {
+        metadata.duplex_verified = value.value !== 0
+      } else if (fieldNumber === 15) {
+        metadata.dpi_verified = value.value !== 0
+      } else if (fieldNumber === 16) {
+        metadata.color_mode_verified = value.value !== 0
+      }
+
+      offset = value.offset
+      continue
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  return metadata
+}
+
+function parseScanDocumentResponse(payload: Uint8Array): DocumentScanMetadata {
+  let offset = 0
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (fieldNumber === 1 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      const metadata = parseDocumentScanMetadata(value.value)
+      return {
+        document_id: metadata.document_id,
+        document_type: mapProtoDocumentTypeToUi(metadata.document_type),
+        object_path: metadata.object_path,
+        sheet_count: metadata.sheet_count,
+        page_count: metadata.page_count,
+        pages: metadata.pages.map((page) => ({
+          sheet_index: page.sheet_index,
+          front_image_path: page.front_image_path,
+          front_image_content_type: page.front_image_content_type,
+          back_image_path: page.back_image_path,
+          back_image_content_type: page.back_image_content_type,
+        })),
+        duplex: metadata.duplex,
+        dpi: metadata.dpi,
+        color_mode: mapProtoScanColorModeToUi(metadata.color_mode),
+        page_size: mapProtoScanPageSizeToUi(metadata.page_size),
+        effective_duplex: metadata.effective_duplex,
+        effective_dpi: metadata.effective_dpi,
+        effective_color_mode: mapProtoScanColorModeToUi(metadata.effective_color_mode),
+        duplex_verified: metadata.duplex_verified,
+        dpi_verified: metadata.dpi_verified,
+        color_mode_verified: metadata.color_mode_verified,
+      }
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  throw new Error('scanDocument response did not include metadata')
+}
+
 function mapProtoMetadataToUi(
   metadata: ProtoChequeMetadata,
   request: {
@@ -1372,6 +1608,30 @@ function encodeScanBordroRequest(params: {
   ])
 }
 
+function encodeScanDocumentRequest(params: {
+  scanner_id: string
+  session_id: string
+  document_id: string
+  document_type: DocumentType
+  sheet_count: number
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
+  page_size: ScanPageSize
+}): Uint8Array {
+  return concatBytes([
+    encodeStringField(1, params.scanner_id),
+    encodeStringField(2, params.session_id),
+    encodeStringField(3, params.document_id),
+    encodeInt32Field(4, mapDocumentTypeToProto(params.document_type)),
+    encodeInt32Field(5, params.sheet_count),
+    encodeBoolField(6, params.duplex),
+    encodeInt32Field(7, params.dpi),
+    encodeInt32Field(8, mapScanColorModeToProto(params.color_mode)),
+    encodeInt32Field(9, mapScanPageSizeToProto(params.page_size)),
+  ])
+}
+
 function encodeScanChequeOptionsFields(params: {
   duplex: boolean
   dpi: number
@@ -1632,6 +1892,26 @@ export async function scanBordroDocument(params: {
   )
 
   return mapProtoBordroScanMetadataToUi(parseScanServiceBordroResponse(response), params.page_size)
+}
+
+export async function scanDocument(params: {
+  scanner_id: string
+  session_id: string
+  document_id: string
+  document_type: DocumentType
+  sheet_count: number
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
+  page_size: ScanPageSize
+}): Promise<DocumentScanMetadata> {
+  const response = await callGrpcWebUnary(
+    'scanDocument',
+    SCAN_DOCUMENT_PATH,
+    encodeScanDocumentRequest(params),
+  )
+
+  return parseScanDocumentResponse(response)
 }
 
 export async function listStorageObjects(prefix: string): Promise<string[]> {

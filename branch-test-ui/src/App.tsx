@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import BordroScanTab from './components/BordroScanTab'
 import BordroTab from './components/BordroTab'
 import DashboardTab from './components/DashboardTab'
+import DocumentScanTab from './components/DocumentScanTab'
 import LogsTab from './components/LogsTab'
 import { TabLayout } from './components/TabLayout'
 import { LogContext } from './context/LogContext'
@@ -143,6 +144,7 @@ function App() {
           />
         }
         bordroScanContent={<BordroScanTab activeBordroId={activeBordroId} />}
+        documentScanContent={<DocumentScanTab />}
         logsContent={<LogsTab />}
       />
     </LogContext.Provider>

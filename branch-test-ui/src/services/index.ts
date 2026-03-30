@@ -10,4 +10,7 @@ export {
   reserveScanner,
   scanBordroDocument,
   scanCheque,
+  scanDocument,
+  scanBordro,
+  scanBordroStream,
 } from './branchClient'

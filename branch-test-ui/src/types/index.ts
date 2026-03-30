@@ -36,8 +36,6 @@ export type BordroChequeType = 'BL' | 'BV' | 'NM' | 'VR'
 
 export type BordroCurrency = 'TRY' | 'USD' | 'EUR'
 
-export type ScanPageSize = 'CHEQUE' | 'A4'
-
 export type CreateBordroRequest = {
   cheque_count: number
   cheque_type: BordroChequeType
@@ -58,6 +56,8 @@ export type SessionBordroEntry = BordroEntry & {
 }
 
 export type ScanColorMode = 'UNSPECIFIED' | 'COLOR' | 'GRAYSCALE' | 'BLACK_AND_WHITE'
+export type ScanPageSize = 'UNSPECIFIED' | 'CHEQUE' | 'A4'
+export type DocumentType = 'UNSPECIFIED' | 'GENERIC'
 
 export type BordroScanMetadata = {
   bordro_id: string
@@ -116,6 +116,33 @@ export type ScanBordroProgress = {
   total_count: number
 }
 
+export type DocumentPageMetadata = {
+  sheet_index: number
+  front_image_path: string
+  front_image_content_type: string
+  back_image_path: string | null
+  back_image_content_type: string | null
+}
+
+export type DocumentScanMetadata = {
+  document_id: string
+  document_type: DocumentType
+  object_path: string
+  sheet_count: number
+  page_count: number
+  pages: DocumentPageMetadata[]
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
+  page_size: ScanPageSize
+  effective_duplex: boolean
+  effective_dpi: number
+  effective_color_mode: ScanColorMode
+  duplex_verified: boolean
+  dpi_verified: boolean
+  color_mode_verified: boolean
+}
+
 export type LogEntry = {
   id: number
   ts: string
@@ -123,4 +150,4 @@ export type LogEntry = {
   msg: string
 }
 
-export type Tab = 'dashboard' | 'bordro' | 'bordroScan' | 'logs'
+export type Tab = 'dashboard' | 'bordro' | 'bordroScan' | 'document-scan' | 'logs'
