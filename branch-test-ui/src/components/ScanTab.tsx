@@ -10,15 +10,15 @@ import {
   resolveStorageObjectPaths,
   scanBordro,
 } from '../services/branchClient'
-import type { CheckMetadata, ScanColorMode, Scanner } from '../types'
+import type { ChequeMetadata, ScanColorMode, ScanPageSize, Scanner } from '../types'
 
 type ScanTabProps = {
   activeBordroId: string | null
-  expectedCheckCount?: number | null
-  initialScannedChecks?: CheckMetadata[]
+  expectedChequeCount?: number | null
+  initialScannedCheques?: ChequeMetadata[]
   initialScanSettings?: ScanSettings
-  onScannedCheckCountChange?: (count: number) => void
-  onScannedChecksChange?: (checks: CheckMetadata[]) => void
+  onScannedChequeCountChange?: (count: number) => void
+  onScannedChequesChange?: (cheques: ChequeMetadata[]) => void
   onScanSettingsChange?: (settings: ScanSettings) => void
   onReservationStateChange?: (state: ScanReservationState) => void
 }
@@ -33,13 +33,14 @@ export type ScanSettings = {
   duplex: boolean
   dpi: number
   color_mode: ScanColorMode
+  page_size: ScanPageSize
 }
 
-type ParsedCheckStorageMetadata = {
+type ParsedChequeStorageMetadata = {
   scanner_id: string | null
   session_id: string | null
   bordro_no: string | null
-  check_no: string | null
+  cheque_no: string | null
   micr_data: string | null
   qr_data: string | null
   micr_qr_match: boolean | null
@@ -47,7 +48,7 @@ type ParsedCheckStorageMetadata = {
   back_image_path: string | null
 }
 
-type CheckStorageState = {
+type ChequeStorageState = {
   isLoading: boolean
   error: string | null
   frontImagePath: string | null
@@ -56,10 +57,10 @@ type CheckStorageState = {
   backImageSizeLabel: string | null
   metadataPath: string | null
   metadataJson: string | null
-  metadata: ParsedCheckStorageMetadata | null
+  metadata: ParsedChequeStorageMetadata | null
 }
 
-function createInitialCheckStorageState(): CheckStorageState {
+function createInitialChequeStorageState(): ChequeStorageState {
   return {
     isLoading: false,
     error: null,
@@ -100,10 +101,15 @@ const SCAN_COLOR_MODE_OPTIONS: Array<{ value: ScanColorMode; label: string }> = 
   { value: 'GRAYSCALE', label: 'Gri Ton' },
   { value: 'BLACK_AND_WHITE', label: 'Siyah-Beyaz' },
 ]
+const SCAN_PAGE_SIZE_OPTIONS: Array<{ value: ScanPageSize; label: string }> = [
+  { value: 'CHEQUE', label: 'Cek' },
+  { value: 'A4', label: 'A4' },
+]
 const DEFAULT_SCAN_SETTINGS: ScanSettings = {
   duplex: false,
   dpi: 300,
   color_mode: 'COLOR',
+  page_size: 'CHEQUE',
 }
 
 let cachedSessionId: string | null = null
@@ -209,8 +215,8 @@ function getSettingStatus(verified: boolean, matches: boolean): { label: string;
   }
 }
 
-function getCheckResultKey(check: CheckMetadata): string {
-  return `${check.bordro_id}-${check.check_no.toString()}-${check.object_path}`
+function getChequeResultKey(cheque: ChequeMetadata): string {
+  return `${cheque.bordro_id}-${cheque.cheque_no.toString()}-${cheque.object_path}`
 }
 
 function getNonEmptyString(value: unknown): string | null {
@@ -238,9 +244,9 @@ function formatByteSize(byteLength: number): string {
   return `${(byteLength / (1024 * 1024)).toFixed(2)} MB`
 }
 
-function parseCheckStorageMetadata(payload: Uint8Array): {
+function parseChequeStorageMetadata(payload: Uint8Array): {
   metadataJson: string | null
-  metadata: ParsedCheckStorageMetadata | null
+  metadata: ParsedChequeStorageMetadata | null
 } {
   if (payload.length === 0) {
     return { metadataJson: null, metadata: null }
@@ -264,7 +270,7 @@ function parseCheckStorageMetadata(payload: Uint8Array): {
         scanner_id: getNonEmptyString(parsed.scanner_id),
         session_id: getNonEmptyString(parsed.session_id),
         bordro_no: getNonEmptyString(parsed.bordro_no),
-        check_no: getNonEmptyString(parsed.check_no),
+        cheque_no: getNonEmptyString(parsed.cheque_no),
         micr_data: getNonEmptyString(parsed.micr_data),
         qr_data: getNonEmptyString(parsed.qr_data),
         micr_qr_match: getBooleanOrNull(parsed.micr_qr_match),
@@ -291,7 +297,7 @@ function firstNonEmpty(...values: Array<string | null | undefined>): string | nu
   return null
 }
 
-function getCheckValidationStatus(isMatch: boolean): { label: string; badgeClassName: string } {
+function getChequeValidationStatus(isMatch: boolean): { label: string; badgeClassName: string } {
   return {
     label: isMatch ? 'Doğrulandı' : 'MICR ve QR eşleşmiyor',
     badgeClassName: isMatch
@@ -302,11 +308,11 @@ function getCheckValidationStatus(isMatch: boolean): { label: string; badgeClass
 
 export default function ScanTab({
   activeBordroId,
-  expectedCheckCount = null,
-  initialScannedChecks = [],
+  expectedChequeCount = null,
+  initialScannedCheques = [],
   initialScanSettings,
-  onScannedCheckCountChange,
-  onScannedChecksChange,
+  onScannedChequeCountChange,
+  onScannedChequesChange,
   onScanSettingsChange,
   onReservationStateChange,
 }: ScanTabProps) {
@@ -316,7 +322,7 @@ export default function ScanTab({
   const [selectedScannerKey, setSelectedScannerKey] = useState<string | null>(null)
   const [isReserved, setIsReserved] = useState<boolean>(false)
   const [reservedScannerId, setReservedScannerId] = useState<string | null>(null)
-  const [scannedChecks, setScannedChecks] = useState<CheckMetadata[]>(() => initialScannedChecks)
+  const [scannedCheques, setScannedCheques] = useState<ChequeMetadata[]>(() => initialScannedCheques)
   const [isDuplex, setIsDuplex] = useState<boolean>(
     initialScanSettings?.duplex ?? DEFAULT_SCAN_SETTINGS.duplex,
   )
@@ -326,13 +332,16 @@ export default function ScanTab({
   const [scanColorMode, setScanColorMode] = useState<ScanColorMode>(
     initialScanSettings?.color_mode ?? DEFAULT_SCAN_SETTINGS.color_mode,
   )
+  const [scanPageSize, setScanPageSize] = useState<ScanPageSize>(
+    initialScanSettings?.page_size ?? DEFAULT_SCAN_SETTINGS.page_size,
+  )
   const [error, setError] = useState<string | null>(null)
   const [hasListedScanners, setHasListedScanners] = useState<boolean>(false)
   const [isListing, setIsListing] = useState<boolean>(false)
   const [isReserving, setIsReserving] = useState<boolean>(false)
   const [isReleasing, setIsReleasing] = useState<boolean>(false)
   const [isScanning, setIsScanning] = useState<boolean>(false)
-  const [checkStorageDetails, setCheckStorageDetails] = useState<Record<string, CheckStorageState>>(
+  const [chequeStorageDetails, setChequeStorageDetails] = useState<Record<string, ChequeStorageState>>(
     {},
   )
 
@@ -346,37 +355,40 @@ export default function ScanTab({
   const activeScannerId = activeScanner?.scanner_id ?? null
   const reservationScannerId = isReserved ? reservedScannerId : activeScannerId
   const scanDisabled = !isReserved || reservationScannerId === null || activeBordroId === null
-  const sortedScannedChecks = useMemo(
-    () => [...scannedChecks].sort((left, right) => left.check_no - right.check_no),
-    [scannedChecks],
+  const sortedScannedCheques = useMemo(
+    () => [...scannedCheques].sort((left, right) => left.cheque_no - right.cheque_no),
+    [scannedCheques],
   )
 
   useEffect(() => {
     setIsDuplex(initialScanSettings?.duplex ?? DEFAULT_SCAN_SETTINGS.duplex)
     setScanDpi(initialScanSettings?.dpi ?? DEFAULT_SCAN_SETTINGS.dpi)
     setScanColorMode(initialScanSettings?.color_mode ?? DEFAULT_SCAN_SETTINGS.color_mode)
+    setScanPageSize(initialScanSettings?.page_size ?? DEFAULT_SCAN_SETTINGS.page_size)
   }, [
     activeBordroId,
     initialScanSettings?.color_mode,
     initialScanSettings?.dpi,
     initialScanSettings?.duplex,
+    initialScanSettings?.page_size,
   ])
 
   useEffect(() => {
-    onScannedCheckCountChange?.(scannedChecks.length)
-  }, [onScannedCheckCountChange, scannedChecks.length])
+    onScannedChequeCountChange?.(scannedCheques.length)
+  }, [onScannedChequeCountChange, scannedCheques.length])
 
   useEffect(() => {
-    onScannedChecksChange?.(scannedChecks)
-  }, [onScannedChecksChange, scannedChecks])
+    onScannedChequesChange?.(scannedCheques)
+  }, [onScannedChequesChange, scannedCheques])
 
   useEffect(() => {
     onScanSettingsChange?.({
       duplex: isDuplex,
       dpi: scanDpi,
       color_mode: scanColorMode,
+      page_size: scanPageSize,
     })
-  }, [onScanSettingsChange, scanColorMode, scanDpi, isDuplex])
+  }, [onScanSettingsChange, scanColorMode, scanDpi, scanPageSize, isDuplex])
 
   useEffect(() => {
     onReservationStateChange?.({
@@ -386,27 +398,27 @@ export default function ScanTab({
     })
   }, [isReserved, onReservationStateChange, reservationScannerId, sessionId])
 
-  const updateCheckStorageState = useCallback(
+  const updateChequeStorageState = useCallback(
     (
-      checkKey: string,
-      updater: (previous: CheckStorageState | undefined) => CheckStorageState,
+      chequeKey: string,
+      updater: (previous: ChequeStorageState | undefined) => ChequeStorageState,
     ): void => {
-      setCheckStorageDetails((previousDetails) => ({
+      setChequeStorageDetails((previousDetails) => ({
         ...previousDetails,
-        [checkKey]: updater(previousDetails[checkKey]),
+        [chequeKey]: updater(previousDetails[chequeKey]),
       }))
     },
     [],
   )
 
-  const clearAllCheckStorageDetails = useCallback((): void => {
-    setCheckStorageDetails({})
+  const clearAllChequeStorageDetails = useCallback((): void => {
+    setChequeStorageDetails({})
   }, [])
 
-  const loadCheckStorageDetails = useCallback(
-    async (check: CheckMetadata, forceReload = false): Promise<void> => {
-      const checkKey = getCheckResultKey(check)
-      const currentState = checkStorageDetails[checkKey]
+  const loadChequeStorageDetails = useCallback(
+    async (cheque: ChequeMetadata, forceReload = false): Promise<void> => {
+      const chequeKey = getChequeResultKey(cheque)
+      const currentState = chequeStorageDetails[chequeKey]
       if (
         !forceReload &&
         currentState &&
@@ -419,35 +431,35 @@ export default function ScanTab({
         return
       }
 
-      if (!check.object_path.trim()) {
-        updateCheckStorageState(checkKey, (previous) => ({
-          ...(previous ?? createInitialCheckStorageState()),
+      if (!cheque.object_path.trim()) {
+        updateChequeStorageState(chequeKey, (previous) => ({
+          ...(previous ?? createInitialChequeStorageState()),
           isLoading: false,
           error: 'Object path boş döndü.',
         }))
         return
       }
 
-      updateCheckStorageState(checkKey, (previous) => ({
-        ...(previous ?? createInitialCheckStorageState()),
+      updateChequeStorageState(chequeKey, (previous) => ({
+        ...(previous ?? createInitialChequeStorageState()),
         isLoading: true,
         error: null,
       }))
 
       try {
-        addLog('info', `İstek: listObjects {prefix:${check.object_path}}`)
-        const listedPaths = await listStorageObjects(check.object_path)
+        addLog('info', `İstek: listObjects {prefix:${cheque.object_path}}`)
+        const listedPaths = await listStorageObjects(cheque.object_path)
         addLog('info', `Yanıt: listObjects objects=${listedPaths.length.toString()}`)
 
         const resolvedPaths = resolveStorageObjectPaths(listedPaths)
         const metadataPath = resolvedPaths.metadata_path
         let metadataJson: string | null = null
-        let parsedMetadata: ParsedCheckStorageMetadata | null = null
+        let parsedMetadata: ParsedChequeStorageMetadata | null = null
 
         if (metadataPath) {
           try {
             const metadataPayload = await getStorageObject(metadataPath)
-            const parsedResult = parseCheckStorageMetadata(metadataPayload)
+            const parsedResult = parseChequeStorageMetadata(metadataPayload)
             metadataJson = parsedResult.metadataJson
             parsedMetadata = parsedResult.metadata
           } catch (metadataError) {
@@ -457,11 +469,11 @@ export default function ScanTab({
         }
 
         const frontImagePath = firstNonEmpty(
-          check.front_image_path,
+          cheque.front_image_path,
           parsedMetadata?.front_image_path,
         )
         const backImagePath = firstNonEmpty(
-          check.back_image_path,
+          cheque.back_image_path,
           parsedMetadata?.back_image_path,
         )
         const frontImageSizeLabel = frontImagePath
@@ -471,31 +483,31 @@ export default function ScanTab({
           ? formatByteSize((await getStorageObject(backImagePath)).length)
           : null
 
-        setScannedChecks((previousChecks) => {
+        setScannedCheques((previousCheques) => {
           let hasChanges = false
 
-          const nextChecks = previousChecks.map((currentCheck) => {
-            if (getCheckResultKey(currentCheck) !== checkKey) {
-              return currentCheck
+          const nextCheques = previousCheques.map((currentCheque) => {
+            if (getChequeResultKey(currentCheque) !== chequeKey) {
+              return currentCheque
             }
 
-            const nextFrontImagePath = firstNonEmpty(currentCheck.front_image_path, frontImagePath)
-            const nextBackImagePath = firstNonEmpty(currentCheck.back_image_path, backImagePath)
+            const nextFrontImagePath = firstNonEmpty(currentCheque.front_image_path, frontImagePath)
+            const nextBackImagePath = firstNonEmpty(currentCheque.back_image_path, backImagePath)
             const resolvedFrontImagePath = nextFrontImagePath ?? ''
             const resolvedBackImagePath = nextBackImagePath ?? ''
 
             if (
-              currentCheck.front_image_path === resolvedFrontImagePath &&
-              currentCheck.back_image_path === resolvedBackImagePath &&
-              currentCheck.front_path === resolvedFrontImagePath &&
-              currentCheck.back_path === resolvedBackImagePath
+              currentCheque.front_image_path === resolvedFrontImagePath &&
+              currentCheque.back_image_path === resolvedBackImagePath &&
+              currentCheque.front_path === resolvedFrontImagePath &&
+              currentCheque.back_path === resolvedBackImagePath
             ) {
-              return currentCheck
+              return currentCheque
             }
 
             hasChanges = true
             return {
-              ...currentCheck,
+              ...currentCheque,
               front_image_path: resolvedFrontImagePath,
               back_image_path: resolvedBackImagePath,
               front_path: resolvedFrontImagePath,
@@ -503,10 +515,10 @@ export default function ScanTab({
             }
           })
 
-          return hasChanges ? nextChecks : previousChecks
+          return hasChanges ? nextCheques : previousCheques
         })
 
-        updateCheckStorageState(checkKey, () => ({
+        updateChequeStorageState(chequeKey, () => ({
           isLoading: false,
           error: null,
           frontImagePath,
@@ -519,25 +531,25 @@ export default function ScanTab({
         }))
       } catch (detailsError) {
         const message = getErrorMessage(detailsError)
-        updateCheckStorageState(checkKey, (previous) => ({
-          ...(previous ?? createInitialCheckStorageState()),
+        updateChequeStorageState(chequeKey, (previous) => ({
+          ...(previous ?? createInitialChequeStorageState()),
           isLoading: false,
           error: message,
         }))
         addLog('error', `Hata: storage detayları ${message}`)
       }
     },
-    [addLog, checkStorageDetails, updateCheckStorageState],
+    [addLog, chequeStorageDetails, updateChequeStorageState],
   )
 
   useEffect(() => {
-    for (const check of scannedChecks) {
-      const checkKey = getCheckResultKey(check)
-      if (!checkStorageDetails[checkKey]) {
-        void loadCheckStorageDetails(check)
+    for (const cheque of scannedCheques) {
+      const chequeKey = getChequeResultKey(cheque)
+      if (!chequeStorageDetails[chequeKey]) {
+        void loadChequeStorageDetails(cheque)
       }
     }
-  }, [checkStorageDetails, loadCheckStorageDetails, scannedChecks])
+  }, [chequeStorageDetails, loadChequeStorageDetails, scannedCheques])
 
   const handleListScanners = useCallback(async (): Promise<void> => {
     setError(null)
@@ -656,6 +668,7 @@ export default function ScanTab({
     const bordroId = activeBordroId
     const dpi = scanDpi
     const colorMode = scanColorMode
+    const pageSize = scanPageSize
     setIsScanning(true)
 
     try {
@@ -663,48 +676,50 @@ export default function ScanTab({
         duplex: isDuplex,
         dpi,
         colorMode,
+        pageSize,
         scannerId,
         bordroId,
       })
       addLog(
         'info',
-        `İstek: scanBordro {scanner_id:${scannerId}, session_id:${sessionId}, bordro_id:${bordroId}, duplex:${isDuplex ? 'true' : 'false'}, dpi:${dpi.toString()}, color_mode:${colorMode}}`,
+        `İstek: scanBordro {scanner_id:${scannerId}, session_id:${sessionId}, bordro_id:${bordroId}, duplex:${isDuplex ? 'true' : 'false'}, dpi:${dpi.toString()}, color_mode:${colorMode}, page_size:${pageSize}}`,
       )
-      const checks = await scanBordro({
+      const cheques = await scanBordro({
         scanner_id: scannerId,
         session_id: sessionId,
         bordro_id: bordroId,
         duplex: isDuplex,
         dpi,
         color_mode: colorMode,
+        page_size: pageSize,
       })
-      clearAllCheckStorageDetails()
-      setScannedChecks(checks)
-      addLog('info', `Yanıt: scanBordro checks=${checks.length.toString()}`)
+      clearAllChequeStorageDetails()
+      setScannedCheques(cheques)
+      addLog('info', `Yanıt: scanBordro cheques=${cheques.length.toString()}`)
 
-      if (checks.length === 0) {
+      if (cheques.length === 0) {
         const emptyResultMessage =
-          'Bordro için taranacak çek bulunamadı. Muhtemelen bordro check_count=0 oluşturuldu.'
+          'Bordro için taranacak çek bulunamadı. Muhtemelen bordro cheque_count=0 oluşturuldu.'
         setError(emptyResultMessage)
         addLog('warn', `Uyarı: scanBordro ${emptyResultMessage}`)
         return
       }
 
       const expectedPageCount = isDuplex ? 2 : 1
-      const unexpectedPageCountChecks = checks.filter(
-        (check) => check.page_count !== expectedPageCount,
+      const unexpectedPageCountCheques = cheques.filter(
+        (cheque) => cheque.page_count !== expectedPageCount,
       )
-      if (unexpectedPageCountChecks.length > 0) {
+      if (unexpectedPageCountCheques.length > 0) {
         addLog(
           'warn',
-          `Uyarı: scanBordro ${unexpectedPageCountChecks.length.toString()} çekte page_count beklenen ${expectedPageCount.toString()} dışında.`,
+          `Uyarı: scanBordro ${unexpectedPageCountCheques.length.toString()} çekte page_count beklenen ${expectedPageCount.toString()} dışında.`,
         )
       }
     } catch (scanError) {
       const message = getErrorMessage(scanError)
       if (isFailedPreconditionError(message)) {
         const failedPreconditionMessage =
-          'Tarama başlatılamadı: failed_precondition. Muhtemelen bordro check_count=0 oluşturuldu.'
+          'Tarama başlatılamadı: failed_precondition. Muhtemelen bordro cheque_count=0 oluşturuldu.'
         setError(failedPreconditionMessage)
         addLog('warn', `Uyarı: scanBordro ${message}`)
       } else {
@@ -976,6 +991,27 @@ export default function ScanTab({
             </select>
           </label>
 
+          <label className="space-y-1 text-sm">
+            <span className="font-medium text-slate-700 dark:text-slate-200">Sayfa Boyutu</span>
+            <select
+              value={scanPageSize}
+              disabled={isScanning}
+              onChange={(event) => {
+                const nextPageSize = event.target.value as ScanPageSize
+                if (nextPageSize === 'CHEQUE' || nextPageSize === 'A4') {
+                  setScanPageSize(nextPageSize)
+                }
+              }}
+              className="w-32 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500"
+            >
+              {SCAN_PAGE_SIZE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <button
             type="submit"
             disabled={scanDisabled || isScanning}
@@ -987,8 +1023,8 @@ export default function ScanTab({
 
           {isScanning ? (
             <p className="w-full text-xs text-cyan-700 dark:text-cyan-300">
-              {expectedCheckCount && expectedCheckCount > 0
-                ? `${expectedCheckCount.toString()} çek taranıyor, lütfen bekleyin…`
+              {expectedChequeCount && expectedChequeCount > 0
+                ? `${expectedChequeCount.toString()} çek taranıyor, lütfen bekleyin…`
                 : 'Bordrodaki çekler taranıyor, lütfen bekleyin…'}
             </p>
           ) : (
@@ -1009,34 +1045,34 @@ export default function ScanTab({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Tarama Sonuçları</h3>
           <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-            {sortedScannedChecks.length.toString()} çek
+            {sortedScannedCheques.length.toString()} çek
           </span>
         </div>
 
-        {sortedScannedChecks.length === 0 ? (
+        {sortedScannedCheques.length === 0 ? (
           <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400">
             Henüz çek taranmadı.
           </p>
         ) : (
           <div className="space-y-4">
-            {sortedScannedChecks.map((check) => {
-              const checkKey = getCheckResultKey(check)
-              const storageDetails = checkStorageDetails[checkKey]
+            {sortedScannedCheques.map((cheque) => {
+              const chequeKey = getChequeResultKey(cheque)
+              const storageDetails = chequeStorageDetails[chequeKey]
               const isDetailsLoading = storageDetails?.isLoading ?? true
               const metadata = storageDetails?.metadata
-              const micrData = firstNonEmpty(check.micr_data, metadata?.micr_data, check.micr) ?? '-'
-              const qrData = firstNonEmpty(check.qr_data, metadata?.qr_data, check.qr) ?? '-'
+              const micrData = firstNonEmpty(cheque.micr_data, metadata?.micr_data, cheque.micr) ?? '-'
+              const qrData = firstNonEmpty(cheque.qr_data, metadata?.qr_data, cheque.qr) ?? '-'
               const micrNotRead = micrData === 'MICR_NOT_READ'
               const qrNotRead = qrData === 'QR_NOT_READ'
-              const micrQrMatch = metadata?.micr_qr_match ?? check.micr_qr_match
-              const validationStatus = getCheckValidationStatus(micrQrMatch)
+              const micrQrMatch = metadata?.micr_qr_match ?? cheque.micr_qr_match
+              const validationStatus = getChequeValidationStatus(micrQrMatch)
               const frontImagePath = firstNonEmpty(
-                check.front_image_path,
+                cheque.front_image_path,
                 metadata?.front_image_path,
                 storageDetails?.frontImagePath,
               )
               const backImagePath = firstNonEmpty(
-                check.back_image_path,
+                cheque.back_image_path,
                 metadata?.back_image_path,
                 storageDetails?.backImagePath,
               )
@@ -1046,41 +1082,48 @@ export default function ScanTab({
                 {
                   key: 'duplex',
                   label: 'Duplex',
-                  requested: formatDuplexLabel(check.duplex),
-                  effective: formatDuplexLabel(check.effective_duplex),
-                  status: getSettingStatus(check.duplex_verified, check.duplex === check.effective_duplex),
+                  requested: formatDuplexLabel(cheque.duplex),
+                  effective: formatDuplexLabel(cheque.effective_duplex),
+                  status: getSettingStatus(cheque.duplex_verified, cheque.duplex === cheque.effective_duplex),
                 },
                 {
                   key: 'dpi',
                   label: 'DPI',
-                  requested: check.dpi > 0 ? check.dpi.toString() : '-',
-                  effective: check.effective_dpi > 0 ? check.effective_dpi.toString() : '-',
-                  status: getSettingStatus(check.dpi_verified, check.dpi === check.effective_dpi),
+                  requested: cheque.dpi > 0 ? cheque.dpi.toString() : '-',
+                  effective: cheque.effective_dpi > 0 ? cheque.effective_dpi.toString() : '-',
+                  status: getSettingStatus(cheque.dpi_verified, cheque.dpi === cheque.effective_dpi),
                 },
                 {
                   key: 'color_mode',
                   label: 'Renk Modu',
-                  requested: formatScanColorModeLabel(check.color_mode),
-                  effective: formatScanColorModeLabel(check.effective_color_mode),
+                  requested: formatScanColorModeLabel(cheque.color_mode),
+                  effective: formatScanColorModeLabel(cheque.effective_color_mode),
                   status: getSettingStatus(
-                    check.color_mode_verified,
-                    check.color_mode === check.effective_color_mode,
+                    cheque.color_mode_verified,
+                    cheque.color_mode === cheque.effective_color_mode,
                   ),
+                },
+                {
+                  key: 'page_size',
+                  label: 'Sayfa Boyutu',
+                  requested: cheque.page_size,
+                  effective: cheque.page_size,
+                  status: getSettingStatus(true, true),
                 },
               ]
 
               return (
                 <article
-                  key={checkKey}
+                  key={chequeKey}
                   className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0 space-y-1">
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-                        Çek No {check.check_no}
+                        Çek No {cheque.cheque_no}
                       </p>
                       <p className="break-all font-mono text-xs text-slate-600 dark:text-slate-400">
-                        {check.object_path || '-'}
+                        {cheque.object_path || '-'}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -1093,7 +1136,7 @@ export default function ScanTab({
                         type="button"
                         disabled={isDetailsLoading}
                         onClick={() => {
-                          void loadCheckStorageDetails(check, true)
+                          void loadChequeStorageDetails(cheque, true)
                         }}
                         className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
@@ -1178,7 +1221,7 @@ export default function ScanTab({
                       <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                         Sayfa Sayısı:{' '}
                         <span className="font-semibold text-slate-700 dark:text-slate-200">
-                          {check.page_count.toString()}
+                          {cheque.page_count.toString()}
                         </span>
                       </p>
                       <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">

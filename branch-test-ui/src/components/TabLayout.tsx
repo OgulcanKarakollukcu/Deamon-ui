@@ -1,6 +1,6 @@
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
 import clsx from 'clsx'
-import { Database, FileText, History, LayoutDashboard, Menu, Moon, Server, Sun } from 'lucide-react'
+import { Database, FileText, History, LayoutDashboard, Menu, Moon, ScanLine, Server, Sun } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { Tab as AppTab } from '../types'
 
@@ -13,6 +13,7 @@ type TabLayoutProps = {
   onThemeToggle: () => void
   dashboardContent?: ReactNode
   bordroContent?: ReactNode
+  bordroScanContent?: ReactNode
   logsContent?: ReactNode
   contentDisabled?: boolean
   contentOverlay?: ReactNode
@@ -21,12 +22,14 @@ type TabLayoutProps = {
 const tabs: Array<{ id: AppTab; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'bordro', label: 'Bordro', icon: FileText },
+  { id: 'bordroScan', label: 'Bordro Tarama', icon: ScanLine },
   { id: 'logs', label: 'Logs', icon: History },
 ]
 
 const tabTitleMap: Record<AppTab, string> = {
   dashboard: 'Dashboard',
   bordro: 'Bordro',
+  bordroScan: 'Bordro Tarama',
   logs: 'Log Kayıtları',
 }
 
@@ -39,6 +42,7 @@ export function TabLayout({
   onThemeToggle,
   dashboardContent,
   bordroContent,
+  bordroScanContent,
   logsContent,
   contentDisabled = false,
   contentOverlay,
@@ -218,6 +222,9 @@ export function TabLayout({
                   </TabPanel>
                   <TabPanel unmount={false} className="h-full min-h-0 overflow-auto">
                     {bordroContent ?? <div>Bordro placeholder</div>}
+                  </TabPanel>
+                  <TabPanel unmount={false} className="h-full min-h-0 overflow-auto">
+                    {bordroScanContent ?? <div>Bordro tarama placeholder</div>}
                   </TabPanel>
                   <TabPanel unmount={false} className="h-full min-h-0 overflow-auto">
                     {logsContent ?? <div>Logs placeholder</div>}

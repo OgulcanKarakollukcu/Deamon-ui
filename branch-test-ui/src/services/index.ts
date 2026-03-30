@@ -1,5 +1,5 @@
 export {
-  checkHealth,
+  chequeHealth,
   createBordro,
   getStorageObject,
   getStorageObjectWithContentType,
@@ -8,5 +8,6 @@ export {
   releaseScanner,
   resolveStorageObjectPaths,
   reserveScanner,
-  scanCheck,
+  scanBordroDocument,
+  scanCheque,
 } from './branchClient'

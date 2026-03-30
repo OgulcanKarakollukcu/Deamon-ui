@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import BordroScanTab from './components/BordroScanTab'
 import BordroTab from './components/BordroTab'
 import DashboardTab from './components/DashboardTab'
 import LogsTab from './components/LogsTab'
 import { TabLayout } from './components/TabLayout'
 import { LogContext } from './context/LogContext'
-import { checkHealth } from './services'
+import { chequeHealth } from './services'
 import type { LogEntry, Tab } from './types'
 
 const THEME_STORAGE_KEY = 'branch-ui-theme'
@@ -26,7 +27,7 @@ function App() {
   const [activeBranchDaemonCount, setActiveBranchDaemonCount] = useState<number>(0)
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [daemonOnline, setDaemonOnline] = useState<boolean>(false)
-  const [checkingDaemon, setCheckingDaemon] = useState<boolean>(false)
+  const [checkingDaemon, setChequeingDaemon] = useState<boolean>(false)
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => getInitialThemeMode())
   const nextLogIdRef = useRef<number>(1)
   const isDarkMode = themeMode === 'dark'
@@ -63,37 +64,37 @@ function App() {
 
   useEffect(() => {
     let isMounted = true
-    let isChecking = false
+    let isChequeing = false
 
-    const runHealthCheck = async () => {
-      if (isChecking) {
+    const runHealthCheque = async () => {
+      if (isChequeing) {
         return
       }
 
-      isChecking = true
+      isChequeing = true
 
       if (isMounted) {
-        setCheckingDaemon(true)
+        setChequeingDaemon(true)
       }
 
       try {
-        const online = await checkHealth()
+        const online = await chequeHealth()
 
         if (isMounted) {
           setDaemonOnline(online)
         }
       } finally {
-        isChecking = false
+        isChequeing = false
         if (isMounted) {
-          setCheckingDaemon(false)
+          setChequeingDaemon(false)
         }
       }
     }
 
-    void runHealthCheck()
+    void runHealthCheque()
 
     const intervalId = window.setInterval(() => {
-      void runHealthCheck()
+      void runHealthCheque()
     }, 5000)
 
     return () => {
@@ -141,6 +142,7 @@ function App() {
             onActiveBordroChange={setActiveBordroId}
           />
         }
+        bordroScanContent={<BordroScanTab activeBordroId={activeBordroId} />}
         logsContent={<LogsTab />}
       />
     </LogContext.Provider>

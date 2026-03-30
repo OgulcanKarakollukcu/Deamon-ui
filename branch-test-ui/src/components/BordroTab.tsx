@@ -7,9 +7,9 @@ import {
   releaseScanner,
 } from '../services/branchClient'
 import type {
-  BordroCheckType,
+  BordroChequeType,
   BordroCurrency,
-  CheckMetadata,
+  ChequeMetadata,
   CreateBordroRequest,
   SessionBordroEntry,
 } from '../types'
@@ -22,14 +22,14 @@ type BordroTabProps = {
 
 type BordroFormState = {
   customerNo: string
-  checkCount: number
-  checkType: BordroCheckType
+  chequeCount: number
+  chequeType: BordroChequeType
   bordroAmount: string
   accountNo: string
   customerName: string
   accountBranch: string
   currency: BordroCurrency
-  showCheck: boolean
+  showCheque: boolean
 }
 
 type SelectedPageState = {
@@ -49,7 +49,7 @@ type ViewerState = {
   error: string | null
 }
 
-const CHECK_TYPE_OPTIONS: Array<{ value: BordroCheckType; label: string }> = [
+const CHEQUE_TYPE_OPTIONS: Array<{ value: BordroChequeType; label: string }> = [
   { value: 'BL', label: 'BL' },
   { value: 'BV', label: 'BV' },
   { value: 'NM', label: 'NM' },
@@ -66,6 +66,7 @@ const DEFAULT_BORDRO_SCAN_SETTINGS: ScanSettings = {
   duplex: false,
   dpi: 300,
   color_mode: 'COLOR',
+  page_size: 'CHEQUE',
 }
 
 const INITIAL_VIEWER_STATE: ViewerState = {
@@ -209,12 +210,12 @@ async function readImageDimensions(blob: Blob, mimeType: string): Promise<{ widt
   })
 }
 
-function buildCheckKey(check: CheckMetadata): string {
-  return `${check.object_path}::${check.check_no.toString()}`
+function buildChequeKey(cheque: ChequeMetadata): string {
+  return `${cheque.object_path}::${cheque.cheque_no.toString()}`
 }
 
-function hasBackPage(check: CheckMetadata): boolean {
-  return check.effective_duplex || check.page_count > 1
+function hasBackPage(cheque: ChequeMetadata): boolean {
+  return cheque.effective_duplex || cheque.page_count > 1
 }
 
 export default function BordroTab({
@@ -224,27 +225,27 @@ export default function BordroTab({
   const { addLog } = useLogContext()
   const [form, setForm] = useState<BordroFormState>({
     customerNo: '10024578',
-    checkCount: 2,
-    checkType: 'NM',
+    chequeCount: 2,
+    chequeType: 'NM',
     bordroAmount: '125000.00',
     accountNo: 'TR000000000000000000000000',
     customerName: 'Debug Müşteri A.Ş.',
     accountBranch: 'Levent Şubesi',
     currency: 'TRY',
-    showCheck: true,
+    showCheque: true,
   })
   const [bordros, setBordros] = useState<SessionBordroEntry[]>([])
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [isScanModalOpen, setIsScanModalOpen] = useState<boolean>(false)
   const [scanBordroId, setScanBordroId] = useState<string | null>(null)
-  const [modalScannedCheckCount, setModalScannedCheckCount] = useState<number>(0)
+  const [modalScannedChequeCount, setModalScannedChequeCount] = useState<number>(0)
   const [modalCloseError, setModalCloseError] = useState<string | null>(null)
   const [isClosingModal, setIsClosingModal] = useState<boolean>(false)
   const [scanReservationState, setScanReservationState] = useState<ScanReservationState>(
     INITIAL_SCAN_RESERVATION_STATE,
   )
-  const [scannedChecksByBordro, setScannedChecksByBordro] = useState<Record<string, CheckMetadata[]>>({})
+  const [scannedChequesByBordro, setScannedChequesByBordro] = useState<Record<string, ChequeMetadata[]>>({})
   const [scanSettingsByBordro, setScanSettingsByBordro] = useState<Record<string, ScanSettings>>({})
   const [selectedPage, setSelectedPage] = useState<SelectedPageState | null>(null)
   const [viewer, setViewer] = useState<ViewerState>(INITIAL_VIEWER_STATE)
@@ -265,28 +266,28 @@ export default function BordroTab({
 
     return scanSettingsByBordro[currentScanBordroId] ?? DEFAULT_BORDRO_SCAN_SETTINGS
   }, [currentScanBordroId, scanSettingsByBordro])
-  const currentScanChecks = useMemo(() => {
+  const currentScanCheques = useMemo(() => {
     if (!currentScanBordroId) {
       return []
     }
 
-    return scannedChecksByBordro[currentScanBordroId] ?? []
-  }, [currentScanBordroId, scannedChecksByBordro])
-  const activeScannedChecks = useMemo(() => {
+    return scannedChequesByBordro[currentScanBordroId] ?? []
+  }, [currentScanBordroId, scannedChequesByBordro])
+  const activeScannedCheques = useMemo(() => {
     if (!activeBordroId) {
       return []
     }
 
-    return scannedChecksByBordro[activeBordroId] ?? []
-  }, [activeBordroId, scannedChecksByBordro])
+    return scannedChequesByBordro[activeBordroId] ?? []
+  }, [activeBordroId, scannedChequesByBordro])
 
-  const selectedCheck = useMemo(() => {
+  const selectedCheque = useMemo(() => {
     if (selectedPage === null) {
       return null
     }
 
-    return activeScannedChecks.find((check) => check.object_path === selectedPage.objectPath) ?? null
-  }, [activeScannedChecks, selectedPage])
+    return activeScannedCheques.find((cheque) => cheque.object_path === selectedPage.objectPath) ?? null
+  }, [activeScannedCheques, selectedPage])
 
   const updateViewer = useCallback(
     (updater: ViewerState | ((previous: ViewerState) => ViewerState)) => {
@@ -314,34 +315,34 @@ export default function BordroTab({
       return
     }
 
-    const existingCheck = activeScannedChecks.find((check) => check.object_path === selectedPage.objectPath)
-    if (!existingCheck) {
+    const existingCheque = activeScannedCheques.find((cheque) => cheque.object_path === selectedPage.objectPath)
+    if (!existingCheque) {
       setSelectedPage(null)
       return
     }
 
-    if (selectedPage.side === 'back' && !hasBackPage(existingCheck)) {
+    if (selectedPage.side === 'back' && !hasBackPage(existingCheque)) {
       setSelectedPage({
-        objectPath: existingCheck.object_path,
+        objectPath: existingCheque.object_path,
         side: 'front',
       })
     }
-  }, [activeScannedChecks, selectedPage])
+  }, [activeScannedCheques, selectedPage])
 
   useEffect(() => {
-    if (selectedPage !== null || activeScannedChecks.length === 0) {
+    if (selectedPage !== null || activeScannedCheques.length === 0) {
       return
     }
 
-    const firstCheck = [...activeScannedChecks].sort((left, right) => left.check_no - right.check_no)[0]
+    const firstCheque = [...activeScannedCheques].sort((left, right) => left.cheque_no - right.cheque_no)[0]
     setSelectedPage({
-      objectPath: firstCheck.object_path,
+      objectPath: firstCheque.object_path,
       side: 'front',
     })
-  }, [activeScannedChecks, selectedPage])
+  }, [activeScannedCheques, selectedPage])
 
   const loadSelectedImage = useCallback(async (): Promise<void> => {
-    if (!form.showCheck || selectedPage === null || selectedCheck === null) {
+    if (!form.showCheque || selectedPage === null || selectedCheque === null) {
       updateViewer({
         ...INITIAL_VIEWER_STATE,
         objectPath: null,
@@ -357,8 +358,8 @@ export default function BordroTab({
     }))
 
     try {
-      const frontImagePath = getStorageObjectPath(selectedCheck.front_image_path)
-      const backImagePath = getStorageObjectPath(selectedCheck.back_image_path)
+      const frontImagePath = getStorageObjectPath(selectedCheque.front_image_path)
+      const backImagePath = getStorageObjectPath(selectedCheque.back_image_path)
       const path = selectedPage.side === 'front' ? frontImagePath : backImagePath
 
       if (!path) {
@@ -387,8 +388,8 @@ export default function BordroTab({
 
       const metadataContentType =
         selectedPage.side === 'front'
-          ? selectedCheck.front_image_content_type
-          : selectedCheck.back_image_content_type
+          ? selectedCheque.front_image_content_type
+          : selectedCheque.back_image_content_type
       const mimeType = resolvePreviewMimeType(metadataContentType, path)
       const copied = new Uint8Array(objectBytes.byteLength)
       copied.set(objectBytes)
@@ -422,7 +423,7 @@ export default function BordroTab({
       }))
       addLog('error', `Hata: selectedImage ${message}`)
     }
-  }, [addLog, form.showCheck, selectedCheck, selectedPage, updateViewer])
+  }, [addLog, form.showCheque, selectedCheque, selectedPage, updateViewer])
 
   useEffect(() => {
     void loadSelectedImage()
@@ -431,7 +432,7 @@ export default function BordroTab({
   function openScanModalForBordro(bordroId: string): void {
     onActiveBordroChange(bordroId)
     setScanBordroId(bordroId)
-    setModalScannedCheckCount(scannedChecksByBordro[bordroId]?.length ?? 0)
+    setModalScannedChequeCount(scannedChequesByBordro[bordroId]?.length ?? 0)
     setModalCloseError(null)
     setScanReservationState(INITIAL_SCAN_RESERVATION_STATE)
     setIsScanModalOpen(true)
@@ -441,7 +442,7 @@ export default function BordroTab({
     event.preventDefault()
     setError(null)
 
-    if (!Number.isInteger(form.checkCount) || form.checkCount < 1) {
+    if (!Number.isInteger(form.chequeCount) || form.chequeCount < 1) {
       setError('Bordro çek adedi en az 1 olmalı.')
       return
     }
@@ -472,8 +473,8 @@ export default function BordroTab({
     }
 
     const request: CreateBordroRequest = {
-      check_count: form.checkCount,
-      check_type: form.checkType,
+      cheque_count: form.chequeCount,
+      cheque_type: form.chequeType,
       bordro_amount: bordroAmount,
       account_no: accountNo,
       customer_name: customerName,
@@ -486,15 +487,15 @@ export default function BordroTab({
     try {
       addLog(
         'info',
-        `İstek: createBordro {check_count:${request.check_count}, check_type:${request.check_type}, bordro_amount:${request.bordro_amount}, account_no:${request.account_no}, customer_name:${request.customer_name}, account_branch:${request.account_branch}, currency:${request.currency}}`,
+        `İstek: createBordro {cheque_count:${request.cheque_count}, cheque_type:${request.cheque_type}, bordro_amount:${request.bordro_amount}, account_no:${request.account_no}, customer_name:${request.customer_name}, account_branch:${request.account_branch}, currency:${request.currency}}`,
       )
       const response = await createBordro(request)
       addLog('info', `Yanıt: createBordro bordro_id=${response.bordro_id}`)
 
       const newBordro: SessionBordroEntry = {
         bordro_id: response.bordro_id,
-        check_count: request.check_count,
-        check_type: request.check_type,
+        cheque_count: request.cheque_count,
+        cheque_type: request.cheque_type,
         bordro_amount: request.bordro_amount,
         account_no: request.account_no,
         customer_name: request.customer_name,
@@ -558,7 +559,7 @@ export default function BordroTab({
 
     setIsScanModalOpen(false)
     setScanBordroId(null)
-    setModalScannedCheckCount(0)
+    setModalScannedChequeCount(0)
     setModalCloseError(null)
     setScanReservationState(INITIAL_SCAN_RESERVATION_STATE)
   }
@@ -578,7 +579,7 @@ export default function BordroTab({
     const nextActiveBordroId = nextBordros[0]?.bordro_id ?? null
 
     setBordros(nextBordros)
-    setScannedChecksByBordro((previous) => {
+    setScannedChequesByBordro((previous) => {
       const next = { ...previous }
       delete next[activeBordroId]
       return next
@@ -594,7 +595,7 @@ export default function BordroTab({
   }, [activeBordroId, addLog, bordros, onActiveBordroChange])
 
   const handleMatchAction = useCallback(() => {
-    if (selectedCheck === null) {
+    if (selectedCheque === null) {
       setError('Eşleştirme için önce döküman ağacından bir sayfa seçin.')
       return
     }
@@ -602,24 +603,24 @@ export default function BordroTab({
     setError(null)
     addLog(
       'info',
-      `Eşleştir: check_no=${selectedCheck.check_no.toString()}, micr_qr_match=${selectedCheck.micr_qr_match ? 'true' : 'false'}`,
+      `Eşleştir: cheque_no=${selectedCheque.cheque_no.toString()}, micr_qr_match=${selectedCheque.micr_qr_match ? 'true' : 'false'}`,
     )
-  }, [addLog, selectedCheck])
+  }, [addLog, selectedCheque])
 
-  const handleModalScannedChecksChange = useCallback(
-    (checks: CheckMetadata[]) => {
+  const handleModalScannedChequesChange = useCallback(
+    (cheques: ChequeMetadata[]) => {
       if (!currentScanBordroId) {
         return
       }
 
-      setScannedChecksByBordro((previous) => {
-        if (previous[currentScanBordroId] === checks) {
+      setScannedChequesByBordro((previous) => {
+        if (previous[currentScanBordroId] === cheques) {
           return previous
         }
 
         return {
           ...previous,
-          [currentScanBordroId]: checks,
+          [currentScanBordroId]: cheques,
         }
       })
     },
@@ -653,12 +654,12 @@ export default function BordroTab({
     [currentScanBordroId],
   )
 
-  const sortedChecks = useMemo(
-    () => [...activeScannedChecks].sort((left, right) => left.check_no - right.check_no),
-    [activeScannedChecks],
+  const sortedCheques = useMemo(
+    () => [...activeScannedCheques].sort((left, right) => left.cheque_no - right.cheque_no),
+    [activeScannedCheques],
   )
-  const activeCheckCount = activeBordro?.check_count ?? form.checkCount
-  const formattedCheckCount = activeCheckCount.toString().padStart(3, '0')
+  const activeChequeCount = activeBordro?.cheque_count ?? form.chequeCount
+  const formattedChequeCount = activeChequeCount.toString().padStart(3, '0')
   const viewerInfo = [
     viewer.mimeType,
     formatFileSize(viewer.byteSize),
@@ -683,7 +684,7 @@ export default function BordroTab({
 
             <div className="mt-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-center dark:border-slate-700 dark:bg-slate-950">
               <p className="text-4xl font-black tabular-nums tracking-[0.2em] text-slate-900 dark:text-slate-100">
-                {formattedCheckCount}
+                {formattedChequeCount}
               </p>
               <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
                 Çek Sayısı
@@ -732,13 +733,13 @@ export default function BordroTab({
               <label className="space-y-1 text-xs">
                 <span className="font-medium text-slate-600 dark:text-slate-300">Çek Tipi</span>
                 <select
-                  value={form.checkType}
+                  value={form.chequeType}
                   onChange={(event) => {
-                    setForm((previous) => ({ ...previous, checkType: event.target.value as BordroCheckType }))
+                    setForm((previous) => ({ ...previous, chequeType: event.target.value as BordroChequeType }))
                   }}
                   className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
-                  {CHECK_TYPE_OPTIONS.map((option) => (
+                  {CHEQUE_TYPE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -783,11 +784,11 @@ export default function BordroTab({
                   min={1}
                   required
                   inputMode="numeric"
-                  value={form.checkCount}
+                  value={form.chequeCount}
                   onChange={(event) => {
                     const parsed = event.target.valueAsNumber
                     const nextCount = Number.isFinite(parsed) ? Math.max(1, Math.trunc(parsed)) : 1
-                    setForm((previous) => ({ ...previous, checkCount: nextCount }))
+                    setForm((previous) => ({ ...previous, chequeCount: nextCount }))
                   }}
                   className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
@@ -829,9 +830,9 @@ export default function BordroTab({
               <label className="col-span-2 inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                 <input
                   type="checkbox"
-                  checked={form.showCheck}
+                  checked={form.showCheque}
                   onChange={(event) => {
-                    setForm((previous) => ({ ...previous, showCheck: event.target.checked }))
+                    setForm((previous) => ({ ...previous, showCheque: event.target.checked }))
                   }}
                   className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 dark:border-slate-700 dark:bg-slate-950"
                 />
@@ -908,20 +909,20 @@ export default function BordroTab({
                 <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
                   Önce bir bordro seçin.
                 </p>
-              ) : sortedChecks.length === 0 ? (
+              ) : sortedCheques.length === 0 ? (
                 <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
                   Seçili bordro için taranmış çek bulunmuyor.
                 </p>
               ) : (
-                sortedChecks.map((check) => {
-                  const documentLabel = `Döküman ${check.check_no.toString()}`
+                sortedCheques.map((cheque) => {
+                  const documentLabel = `Döküman ${cheque.cheque_no.toString()}`
                   const pages: Array<{ side: 'front' | 'back'; label: string }> = [{ side: 'front', label: 'Sayfa 1' }]
-                  if (hasBackPage(check)) {
+                  if (hasBackPage(cheque)) {
                     pages.push({ side: 'back', label: 'Sayfa 2' })
                   }
 
                   return (
-                    <div key={buildCheckKey(check)} className="mb-3">
+                    <div key={buildChequeKey(cheque)} className="mb-3">
                       <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                         <Folder className="h-4 w-4 text-amber-500" />
                         {documentLabel}
@@ -930,15 +931,15 @@ export default function BordroTab({
                       <div className="mt-1 space-y-1 pl-6">
                         {pages.map((page) => {
                           const isSelected =
-                            selectedPage?.objectPath === check.object_path && selectedPage.side === page.side
+                            selectedPage?.objectPath === cheque.object_path && selectedPage.side === page.side
 
                           return (
                             <button
                               type="button"
-                              key={`${check.object_path}-${page.side}`}
+                              key={`${cheque.object_path}-${page.side}`}
                               onClick={() => {
                                 setSelectedPage({
-                                  objectPath: check.object_path,
+                                  objectPath: cheque.object_path,
                                   side: page.side,
                                 })
                               }}
@@ -968,9 +969,9 @@ export default function BordroTab({
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Çek Görüntüsü</h3>
 
               <div className="mt-3 flex h-[calc(100%-1.75rem)] items-center justify-center rounded-lg border border-slate-200 bg-slate-100 p-4 dark:border-slate-700 dark:bg-slate-900">
-                {selectedCheck === null || selectedPage === null ? (
+                {selectedCheque === null || selectedPage === null ? (
                   <p className="text-sm text-slate-500 dark:text-slate-400">Görüntülenecek çek seçin</p>
-                ) : !form.showCheck ? (
+                ) : !form.showCheque ? (
                   <p className="text-sm text-slate-500 dark:text-slate-400">
                     Çeki Göster kapalı. Görüntü gizlendi.
                   </p>
@@ -992,7 +993,7 @@ export default function BordroTab({
                 ) : viewer.objectUrl && isRenderableImageMimeType(viewer.mimeType) && !viewer.renderFailed ? (
                   <img
                     src={viewer.objectUrl}
-                    alt={`Check ${selectedCheck.check_no.toString()} ${selectedPage.side}`}
+                    alt={`Cheque ${selectedCheque.cheque_no.toString()} ${selectedPage.side}`}
                     onError={() => {
                       updateViewer((previous) => ({ ...previous, renderFailed: true }))
                     }}
@@ -1007,7 +1008,7 @@ export default function BordroTab({
                     </p>
                     <a
                       href={viewer.objectUrl}
-                      download={`check-${selectedCheck.check_no.toString()}-${selectedPage.side}${resolveDownloadExtension(
+                      download={`cheque-${selectedCheque.cheque_no.toString()}-${selectedPage.side}${resolveDownloadExtension(
                         viewer.objectPath ?? '',
                         viewer.mimeType,
                       )}`}
@@ -1032,8 +1033,8 @@ export default function BordroTab({
               ) : null}
               <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
                 MICR KOD :{' '}
-                {selectedCheck?.micr ? (
-                  <span className="font-mono text-slate-900 dark:text-slate-100">{selectedCheck.micr}</span>
+                {selectedCheque?.micr ? (
+                  <span className="font-mono text-slate-900 dark:text-slate-100">{selectedCheque.micr}</span>
                 ) : (
                   <span className="text-slate-400 dark:text-slate-500">&nbsp;</span>
                 )}
@@ -1067,7 +1068,7 @@ export default function BordroTab({
                     </p>
                   ) : null}
                   <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                    Taranan Çek: <span className="font-semibold">{modalScannedCheckCount}</span>
+                    Taranan Çek: <span className="font-semibold">{modalScannedChequeCount}</span>
                   </p>
                 </div>
                 <button
@@ -1090,11 +1091,11 @@ export default function BordroTab({
               <div className="overflow-y-auto p-4 md:p-6">
                 <ScanTab
                   activeBordroId={currentScanBordroId}
-                  expectedCheckCount={currentScanBordro?.check_count ?? null}
-                  initialScannedChecks={currentScanChecks}
+                  expectedChequeCount={currentScanBordro?.cheque_count ?? null}
+                  initialScannedCheques={currentScanCheques}
                   initialScanSettings={currentScanSettings}
-                  onScannedCheckCountChange={setModalScannedCheckCount}
-                  onScannedChecksChange={handleModalScannedChecksChange}
+                  onScannedChequeCountChange={setModalScannedChequeCount}
+                  onScannedChequesChange={handleModalScannedChequesChange}
                   onScanSettingsChange={handleScanSettingsChange}
                   onReservationStateChange={setScanReservationState}
                 />

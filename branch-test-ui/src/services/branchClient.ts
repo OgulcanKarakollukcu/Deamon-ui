@@ -1,4 +1,11 @@
-import type { CheckMetadata, CreateBordroRequest, ScanColorMode, Scanner } from '../types'
+import type {
+  BordroScanMetadata,
+  ChequeMetadata,
+  CreateBordroRequest,
+  ScanColorMode,
+  ScanPageSize,
+  Scanner,
+} from '../types'
 
 const BASE_URL = import.meta.env.VITE_BRANCH_ADDR ?? 'http://127.0.0.1:8080'
 
@@ -13,25 +20,28 @@ const GRPC_WEB_DATA_FRAME_FLAG = 0x00
 const GRPC_WEB_TRAILER_FRAME_FLAG = 0x80
 const GRPC_WEB_FRAME_HEADER_LEN = 5
 
-const FRONT_IMAGE_FILE_NAME = 'front.png'
-const BACK_IMAGE_FILE_NAME = 'back.png'
+const FRONT_IMAGE_FILE_NAME = 'front.jpg'
+const BACK_IMAGE_FILE_NAME = 'back.jpg'
+const FRONT_IMAGE_PNG_FILE_NAME = 'front.png'
+const BACK_IMAGE_PNG_FILE_NAME = 'back.png'
 const FRONT_IMAGE_LEGACY_FILE_NAME = 'front.bin'
 const BACK_IMAGE_LEGACY_FILE_NAME = 'back.bin'
-const CHECK_METADATA_FILE_NAME = 'metadata.json'
+const CHEQUE_METADATA_FILE_NAME = 'metadata.json'
 
 const LIST_SCANNERS_PATH = '/daemon.management.ManagementService/ListScanners'
 const RESERVE_SCANNER_PATH = '/daemon.management.ManagementService/ReserveScanner'
 const RELEASE_SCANNER_PATH = '/daemon.management.ManagementService/ReleaseScanner'
-const CREATE_BORDRO_PATH = '/daemon.check.CheckService/CreateBordro'
-const SCAN_CHECK_PATH = '/daemon.check.CheckService/ScanCheck'
-const SCAN_BORDRO_PATH = '/daemon.check.CheckService/ScanBordro'
+const CREATE_BORDRO_PATH = '/daemon.cheque.ChequeService/CreateBordro'
+const SCAN_CHEQUE_PATH = '/daemon.cheque.ChequeService/ScanCheque'
+const SCAN_BORDRO_PATH = '/daemon.cheque.ChequeService/ScanBordro'
+const SCAN_SERVICE_SCAN_BORDRO_PATH = '/daemon.scan.ScanService/ScanBordro'
 const STORAGE_LIST_OBJECTS_PATH = '/daemon.storage.StorageService/ListObjects'
 const STORAGE_GET_OBJECT_PATH = '/daemon.storage.StorageService/GetObject'
 const HEALTH_CHECK_PATH = '/grpc.health.v1.Health/Check'
 
-type ProtoCheckMetadata = {
+type ProtoChequeMetadata = {
   bordro_id: string
-  check_no: string
+  cheque_no: string
   micr_data: string
   qr_data: string
   object_path: string
@@ -87,6 +97,18 @@ function mapScanColorModeToProto(mode: ScanColorMode): number {
 
   if (mode === 'BLACK_AND_WHITE') {
     return 3
+  }
+
+  return 0
+}
+
+function mapScanPageSizeToProto(pageSize: ScanPageSize): number {
+  if (pageSize === 'CHEQUE') {
+    return 1
+  }
+
+  if (pageSize === 'A4') {
+    return 2
   }
 
   return 0
@@ -464,11 +486,11 @@ function parseCreateBordroResponse(payload: Uint8Array): { bordro_id: string } {
   return { bordro_id: bordroId }
 }
 
-function parseCheckMetadata(payload: Uint8Array): ProtoCheckMetadata {
+function parseChequeMetadata(payload: Uint8Array): ProtoChequeMetadata {
   let offset = 0
-  const metadata: ProtoCheckMetadata = {
+  const metadata: ProtoChequeMetadata = {
     bordro_id: '',
-    check_no: '',
+    cheque_no: '',
     micr_data: '',
     qr_data: '',
     object_path: '',
@@ -512,7 +534,7 @@ function parseCheckMetadata(payload: Uint8Array): ProtoCheckMetadata {
       if (fieldNumber === 1) {
         metadata.bordro_id = decoded
       } else if (fieldNumber === 2) {
-        metadata.check_no = decoded
+        metadata.cheque_no = decoded
       } else if (fieldNumber === 3) {
         metadata.micr_data = decoded
       } else if (fieldNumber === 4) {
@@ -625,7 +647,7 @@ function parseCheckMetadata(payload: Uint8Array): ProtoCheckMetadata {
   return metadata
 }
 
-function parseScanCheckResponse(payload: Uint8Array): ProtoCheckMetadata {
+function parseScanChequeResponse(payload: Uint8Array): ProtoChequeMetadata {
   let offset = 0
 
   while (offset < payload.length) {
@@ -637,18 +659,18 @@ function parseScanCheckResponse(payload: Uint8Array): ProtoCheckMetadata {
 
     if (fieldNumber === 1 && wireType === 2) {
       const value = readLengthDelimited(payload, offset)
-      return parseCheckMetadata(value.value)
+      return parseChequeMetadata(value.value)
     }
 
     offset = skipUnknownField(payload, offset, wireType)
   }
 
-  throw new Error('scanCheck response did not include metadata')
+  throw new Error('scanCheque response did not include metadata')
 }
 
-function parseScanBordroResponse(payload: Uint8Array): ProtoCheckMetadata[] {
+function parseScanBordroResponse(payload: Uint8Array): ProtoChequeMetadata[] {
   let offset = 0
-  const checks: ProtoCheckMetadata[] = []
+  const cheques: ProtoChequeMetadata[] = []
 
   while (offset < payload.length) {
     const tagInfo = decodeVarint(payload, offset)
@@ -659,7 +681,7 @@ function parseScanBordroResponse(payload: Uint8Array): ProtoCheckMetadata[] {
 
     if (fieldNumber === 1 && wireType === 2) {
       const value = readLengthDelimited(payload, offset)
-      checks.push(parseCheckMetadata(value.value))
+      cheques.push(parseChequeMetadata(value.value))
       offset = value.offset
       continue
     }
@@ -667,25 +689,161 @@ function parseScanBordroResponse(payload: Uint8Array): ProtoCheckMetadata[] {
     offset = skipUnknownField(payload, offset, wireType)
   }
 
-  return checks
+  return cheques
+}
+
+function parseBordroScanMetadata(payload: Uint8Array): ProtoBordroScanMetadata {
+  let offset = 0
+  const metadata: ProtoBordroScanMetadata = {
+    bordro_id: '',
+    object_path: '',
+    page_count: 0,
+    duplex: false,
+    dpi: 0,
+    color_mode: 0,
+    effective_duplex: false,
+    effective_dpi: 0,
+    effective_color_mode: 0,
+    duplex_verified: false,
+    dpi_verified: false,
+    color_mode_verified: false,
+  }
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (fieldNumber === 1 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      metadata.bordro_id = decodeUtf8(value.value)
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 2 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      metadata.object_path = decodeUtf8(value.value)
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 3 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.page_count = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 4 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.duplex = value.value !== 0
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 5 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.dpi = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 6 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.color_mode = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 7 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.effective_duplex = value.value !== 0
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 8 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.effective_dpi = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 9 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.effective_color_mode = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 10 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.duplex_verified = value.value !== 0
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 11 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.dpi_verified = value.value !== 0
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 12 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      metadata.color_mode_verified = value.value !== 0
+      offset = value.offset
+      continue
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  return metadata
+}
+
+function parseScanServiceBordroResponse(payload: Uint8Array): ProtoBordroScanMetadata {
+  let offset = 0
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (fieldNumber === 1 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      return parseBordroScanMetadata(value.value)
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  throw new Error('scanServiceScanBordro response did not include metadata')
 }
 
 function mapProtoMetadataToUi(
-  metadata: ProtoCheckMetadata,
+  metadata: ProtoChequeMetadata,
   request: {
     scanner_id: string
     session_id: string
     bordro_id: string
-    check_no: number
+    cheque_no: number
     duplex: boolean
     dpi: number
     color_mode: ScanColorMode
+    page_size: ScanPageSize
   },
-): CheckMetadata {
-  const parsedCheckNo = Number.parseInt(metadata.check_no, 10)
-  const checkNo = Number.isInteger(parsedCheckNo) && parsedCheckNo > 0
-    ? parsedCheckNo
-    : request.check_no
+): ChequeMetadata {
+  const parsedChequeNo = Number.parseInt(metadata.cheque_no, 10)
+  const chequeNo = Number.isInteger(parsedChequeNo) && parsedChequeNo > 0
+    ? parsedChequeNo
+    : request.cheque_no
   const requestedDuplex = metadata.has_duplex ? metadata.duplex : request.duplex
   const requestedDpi = metadata.has_dpi && metadata.dpi > 0 ? metadata.dpi : request.dpi
   const requestedColorMode = metadata.has_color_mode
@@ -709,7 +867,7 @@ function mapProtoMetadataToUi(
     scanner_id: request.scanner_id,
     session_id: request.session_id,
     bordro_id: metadata.bordro_id || request.bordro_id,
-    check_no: checkNo,
+    cheque_no: chequeNo,
     micr_data: metadata.micr_data,
     qr_data: metadata.qr_data,
     front_image_path: metadata.front_image_path,
@@ -723,6 +881,7 @@ function mapProtoMetadataToUi(
     duplex: requestedDuplex,
     dpi: requestedDpi,
     color_mode: requestedColorMode,
+    page_size: request.page_size,
     effective_duplex: effectiveDuplex,
     effective_dpi: effectiveDpi,
     effective_color_mode: effectiveColorMode,
@@ -732,6 +891,33 @@ function mapProtoMetadataToUi(
     // Front/back object path values can arrive from API, otherwise are resolved via ListObjects.
     front_path: metadata.front_image_path,
     back_path: metadata.back_image_path,
+  }
+}
+
+function mapProtoBordroScanMetadataToUi(
+  metadata: ProtoBordroScanMetadata,
+  requestPageSize: ScanPageSize,
+): BordroScanMetadata {
+  const requestedColorMode = mapProtoScanColorModeToUi(metadata.color_mode)
+  const effectiveColorMode =
+    metadata.effective_color_mode > 0
+      ? mapProtoScanColorModeToUi(metadata.effective_color_mode)
+      : requestedColorMode
+
+  return {
+    bordro_id: metadata.bordro_id,
+    object_path: metadata.object_path,
+    page_count: metadata.page_count > 0 ? metadata.page_count : metadata.effective_duplex ? 2 : 1,
+    duplex: metadata.duplex,
+    dpi: metadata.dpi,
+    color_mode: requestedColorMode,
+    page_size: requestPageSize,
+    effective_duplex: metadata.effective_duplex,
+    effective_dpi: metadata.effective_dpi > 0 ? metadata.effective_dpi : metadata.dpi,
+    effective_color_mode: effectiveColorMode,
+    duplex_verified: metadata.duplex_verified,
+    dpi_verified: metadata.dpi_verified,
+    color_mode_verified: metadata.color_mode_verified,
   }
 }
 
@@ -758,9 +944,11 @@ function isLikelyObjectPath(value: string): boolean {
     trimmed.includes('\\') ||
     trimmed.endsWith(FRONT_IMAGE_FILE_NAME) ||
     trimmed.endsWith(BACK_IMAGE_FILE_NAME) ||
+    trimmed.endsWith(FRONT_IMAGE_PNG_FILE_NAME) ||
+    trimmed.endsWith(BACK_IMAGE_PNG_FILE_NAME) ||
     trimmed.endsWith(FRONT_IMAGE_LEGACY_FILE_NAME) ||
     trimmed.endsWith(BACK_IMAGE_LEGACY_FILE_NAME) ||
-    trimmed.endsWith(CHECK_METADATA_FILE_NAME)
+    trimmed.endsWith(CHEQUE_METADATA_FILE_NAME)
   )
 }
 
@@ -819,24 +1007,6 @@ function findObjectPathBySuffix(paths: string[], fileName: string): string | nul
   }
 
   return null
-}
-
-function findPreferredObjectPathBySuffix(
-  paths: string[],
-  preferredFileName: string,
-  fallbackFileName: string,
-): { path: string | null; isPng: boolean } {
-  const preferred = findObjectPathBySuffix(paths, preferredFileName)
-  if (preferred) {
-    return { path: preferred, isPng: true }
-  }
-
-  const fallback = findObjectPathBySuffix(paths, fallbackFileName)
-  if (fallback) {
-    return { path: fallback, isPng: false }
-  }
-
-  return { path: null, isPng: false }
 }
 
 function parseListObjectsResponse(payload: Uint8Array): string[] {
@@ -953,7 +1123,7 @@ async function callGrpcWebServerStreaming(
   return response.messages
 }
 
-function encodeHealthCheckRequest(service: string): Uint8Array {
+function encodeHealthChequeRequest(service: string): Uint8Array {
   if (service.trim().length === 0) {
     return new Uint8Array()
   }
@@ -970,8 +1140,8 @@ function encodeReserveOrReleaseRequest(scanner_id: string, session_id: string): 
 
 function encodeCreateBordroRequest(params: CreateBordroRequest): Uint8Array {
   return concatBytes([
-    encodeInt32Field(1, params.check_count),
-    encodeStringField(2, params.check_type),
+    encodeInt32Field(1, params.cheque_count),
+    encodeStringField(2, params.cheque_type),
     encodeStringField(3, params.bordro_amount),
     encodeStringField(4, params.account_no),
     encodeStringField(5, params.customer_name),
@@ -980,25 +1150,27 @@ function encodeCreateBordroRequest(params: CreateBordroRequest): Uint8Array {
   ])
 }
 
-function encodeScanCheckRequest(params: {
+function encodeScanChequeRequest(params: {
   scanner_id: string
   session_id: string
   bordro_id: string
-  check_no: number
+  cheque_no: number
   duplex: boolean
   dpi: number
   color_mode: ScanColorMode
+  page_size: ScanPageSize
 }): Uint8Array {
-  const scanOptions = encodeScanCheckOptionsFields({
+  const scanOptions = encodeScanChequeOptionsFields({
     duplex: params.duplex,
     dpi: params.dpi,
     color_mode: params.color_mode,
+    page_size: params.page_size,
   })
   return concatBytes([
     encodeStringField(1, params.scanner_id),
     encodeStringField(2, params.session_id),
     encodeStringField(3, params.bordro_id),
-    encodeStringField(4, params.check_no.toString()),
+    encodeStringField(4, params.cheque_no.toString()),
     ...scanOptions,
   ])
 }
@@ -1010,11 +1182,13 @@ function encodeScanBordroRequest(params: {
   duplex: boolean
   dpi: number
   color_mode: ScanColorMode
+  page_size: ScanPageSize
 }): Uint8Array {
   const scanOptions = encodeScanBordroOptionsFields({
     duplex: params.duplex,
     dpi: params.dpi,
     color_mode: params.color_mode,
+    page_size: params.page_size,
   })
   return concatBytes([
     encodeStringField(1, params.scanner_id),
@@ -1024,29 +1198,48 @@ function encodeScanBordroRequest(params: {
   ])
 }
 
-function encodeScanCheckOptionsFields(params: {
+function encodeScanChequeOptionsFields(params: {
   duplex: boolean
   dpi: number
   color_mode: ScanColorMode
+  page_size: ScanPageSize
 }): Uint8Array[] {
   const duplex = params.duplex === true
   return [
     encodeBoolField(7, duplex),
     encodeInt32Field(8, params.dpi),
     encodeInt32Field(9, mapScanColorModeToProto(params.color_mode)),
+    encodeInt32Field(10, mapScanPageSizeToProto(params.page_size)),
   ]
+}
+
+type ProtoBordroScanMetadata = {
+  bordro_id: string
+  object_path: string
+  page_count: number
+  duplex: boolean
+  dpi: number
+  color_mode: number
+  effective_duplex: boolean
+  effective_dpi: number
+  effective_color_mode: number
+  duplex_verified: boolean
+  dpi_verified: boolean
+  color_mode_verified: boolean
 }
 
 function encodeScanBordroOptionsFields(params: {
   duplex: boolean
   dpi: number
   color_mode: ScanColorMode
+  page_size: ScanPageSize
 }): Uint8Array[] {
   const duplex = params.duplex === true
   return [
     encodeBoolField(4, duplex),
     encodeInt32Field(5, params.dpi),
     encodeInt32Field(6, mapScanColorModeToProto(params.color_mode)),
+    encodeInt32Field(7, mapScanPageSizeToProto(params.page_size)),
   ]
 }
 
@@ -1115,12 +1308,12 @@ export function getBranchDaemonBaseUrl(): string {
   return BASE_URL
 }
 
-export async function checkHealth(): Promise<boolean> {
+export async function chequeHealth(): Promise<boolean> {
   try {
     await callGrpcWebUnary(
-      'checkHealth',
+      'chequeHealth',
       HEALTH_CHECK_PATH,
-      encodeHealthCheckRequest(''),
+      encodeHealthChequeRequest(''),
     )
     return true
   } catch {
@@ -1161,22 +1354,23 @@ export async function createBordro(request: CreateBordroRequest): Promise<{ bord
   return parseCreateBordroResponse(response)
 }
 
-export async function scanCheck(params: {
+export async function scanCheque(params: {
   scanner_id: string
   session_id: string
   bordro_id: string
-  check_no: number
+  cheque_no: number
   duplex: boolean
   dpi: number
   color_mode: ScanColorMode
-}): Promise<CheckMetadata> {
+  page_size: ScanPageSize
+}): Promise<ChequeMetadata> {
   const response = await callGrpcWebUnary(
-    'scanCheck',
-    SCAN_CHECK_PATH,
-    encodeScanCheckRequest(params),
+    'scanCheque',
+    SCAN_CHEQUE_PATH,
+    encodeScanChequeRequest(params),
   )
 
-  const metadata = parseScanCheckResponse(response)
+  const metadata = parseScanChequeResponse(response)
   return mapProtoMetadataToUi(metadata, params)
 }
 
@@ -1187,7 +1381,8 @@ export async function scanBordro(params: {
   duplex: boolean
   dpi: number
   color_mode: ScanColorMode
-}): Promise<CheckMetadata[]> {
+  page_size: ScanPageSize
+}): Promise<ChequeMetadata[]> {
   const response = await callGrpcWebUnary(
     'scanBordro',
     SCAN_BORDRO_PATH,
@@ -1198,10 +1393,28 @@ export async function scanBordro(params: {
     .map((metadata, index) =>
       mapProtoMetadataToUi(metadata, {
         ...params,
-        check_no: index + 1,
+        cheque_no: index + 1,
       }),
     )
-    .sort((left, right) => left.check_no - right.check_no)
+    .sort((left, right) => left.cheque_no - right.cheque_no)
+}
+
+export async function scanBordroDocument(params: {
+  scanner_id: string
+  session_id: string
+  bordro_id: string
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
+  page_size: ScanPageSize
+}): Promise<BordroScanMetadata> {
+  const response = await callGrpcWebUnary(
+    'scanServiceScanBordro',
+    SCAN_SERVICE_SCAN_BORDRO_PATH,
+    encodeScanBordroRequest(params),
+  )
+
+  return mapProtoBordroScanMetadataToUi(parseScanServiceBordroResponse(response), params.page_size)
 }
 
 export async function listStorageObjects(prefix: string): Promise<string[]> {
@@ -1268,22 +1481,18 @@ export async function getStorageObjectWithContentType(path: string): Promise<Sto
 }
 
 export function resolveStorageObjectPaths(paths: string[]): StorageObjectPaths {
-  const front = findPreferredObjectPathBySuffix(
-    paths,
-    FRONT_IMAGE_FILE_NAME,
-    FRONT_IMAGE_LEGACY_FILE_NAME,
-  )
-  const back = findPreferredObjectPathBySuffix(
-    paths,
-    BACK_IMAGE_FILE_NAME,
-    BACK_IMAGE_LEGACY_FILE_NAME,
-  )
+  const frontJpeg = findObjectPathBySuffix(paths, FRONT_IMAGE_FILE_NAME)
+  const frontPng = findObjectPathBySuffix(paths, FRONT_IMAGE_PNG_FILE_NAME)
+  const frontLegacy = findObjectPathBySuffix(paths, FRONT_IMAGE_LEGACY_FILE_NAME)
+  const backJpeg = findObjectPathBySuffix(paths, BACK_IMAGE_FILE_NAME)
+  const backPng = findObjectPathBySuffix(paths, BACK_IMAGE_PNG_FILE_NAME)
+  const backLegacy = findObjectPathBySuffix(paths, BACK_IMAGE_LEGACY_FILE_NAME)
 
   return {
-    front_path: front.path,
-    front_is_png: front.isPng,
-    back_path: back.path,
-    back_is_png: back.isPng,
-    metadata_path: findObjectPathBySuffix(paths, CHECK_METADATA_FILE_NAME),
+    front_path: frontJpeg ?? frontPng ?? frontLegacy,
+    front_is_png: frontPng !== null && frontJpeg === null,
+    back_path: backJpeg ?? backPng ?? backLegacy,
+    back_is_png: backPng !== null && backJpeg === null,
+    metadata_path: findObjectPathBySuffix(paths, CHEQUE_METADATA_FILE_NAME),
   }
 }

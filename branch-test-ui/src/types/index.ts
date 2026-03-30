@@ -28,17 +28,19 @@ export type Scanner = {
 
 export type BordroEntry = {
   bordro_id: string
-  check_count: number
+  cheque_count: number
   created_at: string
 }
 
-export type BordroCheckType = 'BL' | 'BV' | 'NM' | 'VR'
+export type BordroChequeType = 'BL' | 'BV' | 'NM' | 'VR'
 
 export type BordroCurrency = 'TRY' | 'USD' | 'EUR'
 
+export type ScanPageSize = 'CHEQUE' | 'A4'
+
 export type CreateBordroRequest = {
-  check_count: number
-  check_type: BordroCheckType
+  cheque_count: number
+  cheque_type: BordroChequeType
   bordro_amount: string
   account_no: string
   customer_name: string
@@ -47,7 +49,7 @@ export type CreateBordroRequest = {
 }
 
 export type SessionBordroEntry = BordroEntry & {
-  check_type: BordroCheckType
+  cheque_type: BordroChequeType
   bordro_amount: string
   account_no: string
   customer_name: string
@@ -57,12 +59,28 @@ export type SessionBordroEntry = BordroEntry & {
 
 export type ScanColorMode = 'UNSPECIFIED' | 'COLOR' | 'GRAYSCALE' | 'BLACK_AND_WHITE'
 
-export type CheckMetadata = {
+export type BordroScanMetadata = {
+  bordro_id: string
+  object_path: string
+  page_count: number
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
+  page_size: ScanPageSize
+  effective_duplex: boolean
+  effective_dpi: number
+  effective_color_mode: ScanColorMode
+  duplex_verified: boolean
+  dpi_verified: boolean
+  color_mode_verified: boolean
+}
+
+export type ChequeMetadata = {
   object_path: string
   scanner_id: string
   session_id: string
   bordro_id: string
-  check_no: number
+  cheque_no: number
   micr_data: string
   qr_data: string
   front_image_path: string
@@ -78,6 +96,7 @@ export type CheckMetadata = {
   duplex: boolean
   dpi: number
   color_mode: ScanColorMode
+  page_size: ScanPageSize
   // Effective options applied by backend after scan.
   effective_duplex: boolean
   effective_dpi: number
@@ -98,4 +117,4 @@ export type LogEntry = {
   msg: string
 }
 
-export type Tab = 'dashboard' | 'bordro' | 'logs'
+export type Tab = 'dashboard' | 'bordro' | 'bordroScan' | 'logs'
