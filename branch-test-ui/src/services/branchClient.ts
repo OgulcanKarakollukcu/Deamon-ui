@@ -1,13 +1,21 @@
 import type {
   BordroScanMetadata,
+  CleanupReservationsResponse,
+  ChequeImageDebugResult,
   ChequeMetadata,
   CreateBordroRequest,
   DocumentScanMetadata,
+  DocumentScanProgress,
   DocumentType,
+  ManagementDiagnostics,
+  PcDaemon,
+  ReservationInfo,
+  ResetScannerResponse,
   ScanColorMode,
   ScanBordroProgress,
   ScanPageSize,
   Scanner,
+  SupportSnapshot,
 } from '../types'
 
 const BASE_URL = import.meta.env.VITE_BRANCH_ADDR ?? 'http://127.0.0.1:8080'
@@ -32,9 +40,14 @@ const BACK_IMAGE_LEGACY_FILE_NAME = 'back.bin'
 const CHEQUE_METADATA_FILE_NAME = 'metadata.json'
 
 const LIST_SCANNERS_PATH = '/daemon.management.ManagementService/ListScanners'
+const GET_DIAGNOSTICS_PATH = '/daemon.management.ManagementService/GetDiagnostics'
+const GET_SUPPORT_SNAPSHOT_PATH = '/daemon.management.ManagementService/GetSupportSnapshot'
 const RESERVE_SCANNER_PATH = '/daemon.management.ManagementService/ReserveScanner'
 const RELEASE_SCANNER_PATH = '/daemon.management.ManagementService/ReleaseScanner'
+const RESET_SCANNER_PATH = '/daemon.management.ManagementService/ResetScanner'
+const CLEANUP_RESERVATIONS_PATH = '/daemon.management.ManagementService/CleanupReservations'
 const CREATE_BORDRO_PATH = '/daemon.cheque.ChequeService/CreateBordro'
+const ANALYZE_CHEQUE_IMAGE_PATH = '/daemon.cheque.ChequeService/AnalyzeChequeImage'
 const SCAN_CHEQUE_PATH = '/daemon.cheque.ChequeService/ScanCheque'
 const SCAN_BORDRO_PATH = '/daemon.cheque.ChequeService/ScanBordro'
 const SCAN_SERVICE_SCAN_BORDRO_PATH = '/daemon.scan.ScanService/ScanBordro'
@@ -75,7 +88,31 @@ type ProtoChequeMetadata = {
   color_mode_verified: boolean
 }
 
+type ProtoChequeImageDebugResult = {
+  micr_data: string
+  qr_data: string
+  micr_qr_match: boolean
+  effective_dpi: number
+  image_size_bytes: number
+  micr_ms: number
+  qr_ms: number
+  total_ms: number
+}
+
 type PcDaemonStatus = 'available' | 'reserved' | 'unavailable'
+
+type ProtoManagementDiagnostics = {
+  node_role: string
+  generated_at_unix: number
+  online_pc_daemon_count: number
+  scanner_count: number
+  available_scanner_count: number
+  reserved_scanner_count: number
+  active_reservation_count: number
+  expired_reservation_count: number
+  reservation_timeout_secs: number
+  heartbeat_timeout_secs: number
+}
 
 type ProtoDocumentPageMetadata = {
   sheet_index: number
@@ -418,6 +455,7 @@ function parseScannerInfo(payload: Uint8Array): Scanner {
   let pcDaemonStatus: PcDaemonStatus = 'unavailable'
   let lastHeartbeatUnix = 0
   let isReserved = false
+  let reservedSessionId = ''
 
   while (offset < payload.length) {
     const tagInfo = decodeVarint(payload, offset)
@@ -450,6 +488,13 @@ function parseScannerInfo(payload: Uint8Array): Scanner {
     if (fieldNumber === 5 && wireType === 2) {
       const value = readLengthDelimited(payload, offset)
       pcDaemonAddr = decodeUtf8(value.value)
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 4 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      reservedSessionId = decodeUtf8(value.value)
       offset = value.offset
       continue
     }
@@ -496,9 +541,19 @@ function parseScannerInfo(payload: Uint8Array): Scanner {
     pc_daemon_addr: pcDaemonAddr || '-',
     scan_grpc_addr: scanGrpcAddr || '-',
     pc_daemon_status: pcDaemonStatus,
+    is_reserved: isReserved || reservedSessionId.trim().length > 0,
+    reserved_session_id: reservedSessionId,
     last_heartbeat_unix: lastHeartbeatUnix,
     last_heartbeat: lastHeartbeat,
   }
+}
+
+function encodeBytesField(fieldNumber: number, value: Uint8Array): Uint8Array {
+  return concatBytes([
+    encodeTag(fieldNumber, 2),
+    encodeVarint(value.length),
+    value,
+  ])
 }
 
 function parseListScannersResponse(payload: Uint8Array): Scanner[] {
@@ -523,6 +578,327 @@ function parseListScannersResponse(payload: Uint8Array): Scanner[] {
   }
 
   return scanners
+}
+
+function formatHeartbeatFromUnix(lastHeartbeatUnix: number): string {
+  return Number.isFinite(lastHeartbeatUnix) && lastHeartbeatUnix > 0
+    ? new Date(lastHeartbeatUnix * 1000).toISOString()
+    : '-'
+}
+
+function parseDaemonInfo(payload: Uint8Array): PcDaemon {
+  let offset = 0
+  let pcDaemonId = ''
+  let pcDaemonAddr = ''
+  let scannerId = ''
+  let status: PcDaemon['status'] = 'unavailable'
+  let lastHeartbeatUnix = 0
+  let scanGrpcAddr = ''
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (fieldNumber === 1 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      pcDaemonId = decodeUtf8(value.value)
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 2 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      pcDaemonAddr = decodeUtf8(value.value)
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 3 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      scannerId = decodeUtf8(value.value)
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 4 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      const rawStatus = decodeUtf8(value.value).trim()
+      if (rawStatus === 'available' || rawStatus === 'reserved' || rawStatus === 'unavailable') {
+        status = rawStatus
+      }
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 5 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      lastHeartbeatUnix = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 6 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      scanGrpcAddr = decodeUtf8(value.value)
+      offset = value.offset
+      continue
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  return {
+    pc_daemon_id: pcDaemonId || '-',
+    pc_daemon_addr: pcDaemonAddr || '-',
+    scan_grpc_addr: scanGrpcAddr || '-',
+    scanner_ids: scannerId.trim().length > 0 ? [scannerId] : [],
+    status,
+    last_heartbeat: formatHeartbeatFromUnix(lastHeartbeatUnix),
+  }
+}
+
+function parseManagementDiagnostics(payload: Uint8Array): ManagementDiagnostics {
+  let offset = 0
+  const diagnostics: ProtoManagementDiagnostics = {
+    node_role: '',
+    generated_at_unix: 0,
+    online_pc_daemon_count: 0,
+    scanner_count: 0,
+    available_scanner_count: 0,
+    reserved_scanner_count: 0,
+    active_reservation_count: 0,
+    expired_reservation_count: 0,
+    reservation_timeout_secs: 0,
+    heartbeat_timeout_secs: 0,
+  }
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (fieldNumber === 1 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      diagnostics.node_role = decodeUtf8(value.value)
+      offset = value.offset
+      continue
+    }
+
+    if (wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      if (fieldNumber === 2) {
+        diagnostics.generated_at_unix = value.value
+      } else if (fieldNumber === 3) {
+        diagnostics.online_pc_daemon_count = value.value
+      } else if (fieldNumber === 4) {
+        diagnostics.scanner_count = value.value
+      } else if (fieldNumber === 5) {
+        diagnostics.available_scanner_count = value.value
+      } else if (fieldNumber === 6) {
+        diagnostics.reserved_scanner_count = value.value
+      } else if (fieldNumber === 7) {
+        diagnostics.active_reservation_count = value.value
+      } else if (fieldNumber === 8) {
+        diagnostics.expired_reservation_count = value.value
+      } else if (fieldNumber === 9) {
+        diagnostics.reservation_timeout_secs = value.value
+      } else if (fieldNumber === 10) {
+        diagnostics.heartbeat_timeout_secs = value.value
+      }
+
+      offset = value.offset
+      continue
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  return diagnostics
+}
+
+function parseReservationInfo(payload: Uint8Array): ReservationInfo {
+  let offset = 0
+  let scannerId = ''
+  let sessionId = ''
+  let createdAtUnix = 0
+  let lastActivityUnix = 0
+  let expiresAtUnix = 0
+  let isExpired = false
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (fieldNumber === 1 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      scannerId = decodeUtf8(value.value)
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 2 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      sessionId = decodeUtf8(value.value)
+      offset = value.offset
+      continue
+    }
+
+    if (wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      if (fieldNumber === 3) {
+        createdAtUnix = value.value
+      } else if (fieldNumber === 4) {
+        lastActivityUnix = value.value
+      } else if (fieldNumber === 5) {
+        expiresAtUnix = value.value
+      } else if (fieldNumber === 6) {
+        isExpired = value.value !== 0
+      }
+      offset = value.offset
+      continue
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  return {
+    scanner_id: scannerId,
+    session_id: sessionId,
+    created_at_unix: createdAtUnix,
+    last_activity_unix: lastActivityUnix,
+    expires_at_unix: expiresAtUnix,
+    is_expired: isExpired,
+  }
+}
+
+function parseSupportSnapshotResponse(payload: Uint8Array): SupportSnapshot {
+  let offset = 0
+  let diagnostics: ManagementDiagnostics | null = null
+  const daemons: PcDaemon[] = []
+  const scanners: Scanner[] = []
+  const reservations: ReservationInfo[] = []
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (wireType !== 2) {
+      offset = skipUnknownField(payload, offset, wireType)
+      continue
+    }
+
+    const value = readLengthDelimited(payload, offset)
+    if (fieldNumber === 1) {
+      diagnostics = parseManagementDiagnostics(value.value)
+    } else if (fieldNumber === 2) {
+      daemons.push(parseDaemonInfo(value.value))
+    } else if (fieldNumber === 3) {
+      scanners.push(parseScannerInfo(value.value))
+    } else if (fieldNumber === 4) {
+      reservations.push(parseReservationInfo(value.value))
+    }
+    offset = value.offset
+  }
+
+  return {
+    diagnostics:
+      diagnostics ?? {
+        node_role: '',
+        generated_at_unix: 0,
+        online_pc_daemon_count: 0,
+        scanner_count: 0,
+        available_scanner_count: 0,
+        reserved_scanner_count: 0,
+        active_reservation_count: 0,
+        expired_reservation_count: 0,
+        reservation_timeout_secs: 0,
+        heartbeat_timeout_secs: 0,
+      },
+    daemons,
+    scanners,
+    reservations,
+  }
+}
+
+function parseResetScannerResponse(payload: Uint8Array): ResetScannerResponse {
+  let offset = 0
+  let reset = false
+  let releasedSessionId = ''
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (fieldNumber === 1 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      reset = value.value !== 0
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 2 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      releasedSessionId = decodeUtf8(value.value)
+      offset = value.offset
+      continue
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  return {
+    reset,
+    released_session_id: releasedSessionId,
+  }
+}
+
+function parseCleanupReservationsResponse(payload: Uint8Array): CleanupReservationsResponse {
+  let offset = 0
+  let releasedCount = 0
+  const releasedReservations: ReservationInfo[] = []
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (fieldNumber === 1 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      releasedCount = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 2 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      releasedReservations.push(parseReservationInfo(value.value))
+      offset = value.offset
+      continue
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  return {
+    released_count: releasedCount,
+    released_reservations: releasedReservations,
+  }
 }
 
 function parseCreateBordroResponse(payload: Uint8Array): { bordro_id: string } {
@@ -729,6 +1105,88 @@ function parseScanChequeResponse(payload: Uint8Array): ProtoChequeMetadata {
   }
 
   throw new Error('scanCheque response did not include metadata')
+}
+
+function parseAnalyzeChequeImageResponse(payload: Uint8Array): ProtoChequeImageDebugResult {
+  let offset = 0
+  const result: ProtoChequeImageDebugResult = {
+    micr_data: '',
+    qr_data: '',
+    micr_qr_match: false,
+    effective_dpi: 0,
+    image_size_bytes: 0,
+    micr_ms: 0,
+    qr_ms: 0,
+    total_ms: 0,
+  }
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (fieldNumber === 1 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      result.micr_data = decodeUtf8(value.value)
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 2 && wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      result.qr_data = decodeUtf8(value.value)
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 3 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      result.micr_qr_match = value.value !== 0
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 4 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      result.effective_dpi = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 5 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      result.image_size_bytes = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 6 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      result.micr_ms = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 7 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      result.qr_ms = value.value
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 8 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      result.total_ms = value.value
+      offset = value.offset
+      continue
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  return result
 }
 
 function parseScanBordroProgress(payload: Uint8Array): ProtoScanBordroProgress {
@@ -1100,8 +1558,38 @@ function parseDocumentScanMetadata(payload: Uint8Array): ProtoDocumentScanMetada
   return metadata
 }
 
-function parseScanDocumentResponse(payload: Uint8Array): DocumentScanMetadata {
+function mapProtoDocumentScanMetadataToUi(metadata: ProtoDocumentScanMetadata): DocumentScanMetadata {
+  return {
+    document_id: metadata.document_id,
+    document_type: mapProtoDocumentTypeToUi(metadata.document_type),
+    object_path: metadata.object_path,
+    sheet_count: metadata.sheet_count,
+    page_count: metadata.page_count,
+    pages: metadata.pages.map((page) => ({
+      sheet_index: page.sheet_index,
+      front_image_path: page.front_image_path,
+      front_image_content_type: page.front_image_content_type,
+      back_image_path: page.back_image_path,
+      back_image_content_type: page.back_image_content_type,
+    })),
+    duplex: metadata.duplex,
+    dpi: metadata.dpi,
+    color_mode: mapProtoScanColorModeToUi(metadata.color_mode),
+    page_size: mapProtoScanPageSizeToUi(metadata.page_size),
+    effective_duplex: metadata.effective_duplex,
+    effective_dpi: metadata.effective_dpi,
+    effective_color_mode: mapProtoScanColorModeToUi(metadata.effective_color_mode),
+    duplex_verified: metadata.duplex_verified,
+    dpi_verified: metadata.dpi_verified,
+    color_mode_verified: metadata.color_mode_verified,
+  }
+}
+
+function parseScanDocumentProgress(payload: Uint8Array): DocumentScanProgress {
   let offset = 0
+  let metadata: DocumentScanMetadata | null = null
+  let completedSheetCount = 0
+  let totalSheetCount = 0
 
   while (offset < payload.length) {
     const tagInfo = decodeVarint(payload, offset)
@@ -1112,37 +1600,34 @@ function parseScanDocumentResponse(payload: Uint8Array): DocumentScanMetadata {
 
     if (fieldNumber === 1 && wireType === 2) {
       const value = readLengthDelimited(payload, offset)
-      const metadata = parseDocumentScanMetadata(value.value)
-      return {
-        document_id: metadata.document_id,
-        document_type: mapProtoDocumentTypeToUi(metadata.document_type),
-        object_path: metadata.object_path,
-        sheet_count: metadata.sheet_count,
-        page_count: metadata.page_count,
-        pages: metadata.pages.map((page) => ({
-          sheet_index: page.sheet_index,
-          front_image_path: page.front_image_path,
-          front_image_content_type: page.front_image_content_type,
-          back_image_path: page.back_image_path,
-          back_image_content_type: page.back_image_content_type,
-        })),
-        duplex: metadata.duplex,
-        dpi: metadata.dpi,
-        color_mode: mapProtoScanColorModeToUi(metadata.color_mode),
-        page_size: mapProtoScanPageSizeToUi(metadata.page_size),
-        effective_duplex: metadata.effective_duplex,
-        effective_dpi: metadata.effective_dpi,
-        effective_color_mode: mapProtoScanColorModeToUi(metadata.effective_color_mode),
-        duplex_verified: metadata.duplex_verified,
-        dpi_verified: metadata.dpi_verified,
-        color_mode_verified: metadata.color_mode_verified,
+      metadata = mapProtoDocumentScanMetadataToUi(parseDocumentScanMetadata(value.value))
+      offset = value.offset
+      continue
+    }
+
+    if (wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      if (fieldNumber === 2) {
+        completedSheetCount = value.value
+      } else if (fieldNumber === 3) {
+        totalSheetCount = value.value
       }
+      offset = value.offset
+      continue
     }
 
     offset = skipUnknownField(payload, offset, wireType)
   }
 
-  throw new Error('scanDocument response did not include metadata')
+  if (metadata === null) {
+    throw new Error('scanDocument progress did not include metadata')
+  }
+
+  return {
+    metadata,
+    completed_sheet_count: completedSheetCount,
+    total_sheet_count: totalSheetCount,
+  }
 }
 
 function mapProtoMetadataToUi(
@@ -1548,6 +2033,22 @@ function encodeReserveOrReleaseRequest(scanner_id: string, session_id: string): 
   ])
 }
 
+function encodeResetScannerRequest(
+  scanner_id: string,
+  session_id: string,
+  force: boolean,
+): Uint8Array {
+  return concatBytes([
+    encodeStringField(1, scanner_id),
+    encodeStringField(2, session_id),
+    encodeBoolField(3, force),
+  ])
+}
+
+function encodeCleanupReservationsRequest(releaseAll: boolean): Uint8Array {
+  return encodeBoolField(1, releaseAll)
+}
+
 function encodeCreateBordroRequest(params: CreateBordroRequest): Uint8Array {
   return concatBytes([
     encodeInt32Field(1, params.cheque_count),
@@ -1557,6 +2058,16 @@ function encodeCreateBordroRequest(params: CreateBordroRequest): Uint8Array {
     encodeStringField(5, params.customer_name),
     encodeStringField(6, params.account_branch),
     encodeStringField(7, params.currency),
+  ])
+}
+
+function encodeAnalyzeChequeImageRequest(params: {
+  image: Uint8Array
+  dpi: number
+}): Uint8Array {
+  return concatBytes([
+    encodeBytesField(1, params.image),
+    encodeInt32Field(2, params.dpi),
   ])
 }
 
@@ -1744,6 +2255,26 @@ export async function listScanners(): Promise<Scanner[]> {
   return parseListScannersResponse(response)
 }
 
+export async function getDiagnostics(): Promise<ManagementDiagnostics> {
+  const response = await callGrpcWebUnary(
+    'getDiagnostics',
+    GET_DIAGNOSTICS_PATH,
+    new Uint8Array(),
+  )
+
+  return parseManagementDiagnostics(response)
+}
+
+export async function getSupportSnapshot(): Promise<SupportSnapshot> {
+  const response = await callGrpcWebUnary(
+    'getSupportSnapshot',
+    GET_SUPPORT_SNAPSHOT_PATH,
+    new Uint8Array(),
+  )
+
+  return parseSupportSnapshotResponse(response)
+}
+
 export function getBranchDaemonBaseUrl(): string {
   return BASE_URL
 }
@@ -1784,6 +2315,32 @@ export async function releaseScanner(scanner_id: string, session_id: string): Pr
   )
 }
 
+export async function resetScanner(params: {
+  scanner_id: string
+  session_id: string
+  force?: boolean
+}): Promise<ResetScannerResponse> {
+  const response = await callGrpcWebUnary(
+    'resetScanner',
+    RESET_SCANNER_PATH,
+    encodeResetScannerRequest(params.scanner_id, params.session_id, params.force === true),
+  )
+
+  return parseResetScannerResponse(response)
+}
+
+export async function cleanupReservations(
+  releaseAll: boolean,
+): Promise<CleanupReservationsResponse> {
+  const response = await callGrpcWebUnary(
+    'cleanupReservations',
+    CLEANUP_RESERVATIONS_PATH,
+    encodeCleanupReservationsRequest(releaseAll),
+  )
+
+  return parseCleanupReservationsResponse(response)
+}
+
 export async function createBordro(request: CreateBordroRequest): Promise<{ bordro_id: string }> {
   const response = await callGrpcWebUnary(
     'createBordro',
@@ -1792,6 +2349,29 @@ export async function createBordro(request: CreateBordroRequest): Promise<{ bord
   )
 
   return parseCreateBordroResponse(response)
+}
+
+export async function analyzeChequeImage(params: {
+  image: Uint8Array
+  dpi: number
+}): Promise<ChequeImageDebugResult> {
+  const response = await callGrpcWebUnary(
+    'analyzeChequeImage',
+    ANALYZE_CHEQUE_IMAGE_PATH,
+    encodeAnalyzeChequeImageRequest(params),
+  )
+
+  const result = parseAnalyzeChequeImageResponse(response)
+  return {
+    micr_data: result.micr_data,
+    qr_data: result.qr_data,
+    micr_qr_match: result.micr_qr_match,
+    effective_dpi: result.effective_dpi,
+    image_size_bytes: result.image_size_bytes,
+    micr_ms: result.micr_ms,
+    qr_ms: result.qr_ms,
+    total_ms: result.total_ms,
+  }
 }
 
 export async function scanCheque(params: {
@@ -1905,13 +2485,43 @@ export async function scanDocument(params: {
   color_mode: ScanColorMode
   page_size: ScanPageSize
 }): Promise<DocumentScanMetadata> {
-  const response = await callGrpcWebUnary(
+  let latestMetadata: DocumentScanMetadata | null = null
+
+  await scanDocumentStream({
+    ...params,
+    onProgress: async (progress) => {
+      latestMetadata = progress.metadata
+    },
+  })
+
+  if (latestMetadata === null) {
+    throw new Error('scanDocument stream did not include metadata')
+  }
+
+  return latestMetadata
+}
+
+export async function scanDocumentStream(params: {
+  scanner_id: string
+  session_id: string
+  document_id: string
+  document_type: DocumentType
+  sheet_count: number
+  duplex: boolean
+  dpi: number
+  color_mode: ScanColorMode
+  page_size: ScanPageSize
+  onProgress?: (progress: DocumentScanProgress) => Promise<void> | void
+}): Promise<void> {
+  await callGrpcWebServerStreamingLive(
     'scanDocument',
     SCAN_DOCUMENT_PATH,
     encodeScanDocumentRequest(params),
+    async (message) => {
+      const progress = parseScanDocumentProgress(message)
+      await params.onProgress?.(progress)
+    },
   )
-
-  return parseScanDocumentResponse(response)
 }
 
 export async function listStorageObjects(prefix: string): Promise<string[]> {

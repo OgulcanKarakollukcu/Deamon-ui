@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import BordroScanTab from './components/BordroScanTab'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import BordroTab from './components/BordroTab'
+import ChequeDebugTab from './components/ChequeDebugTab'
 import DashboardTab from './components/DashboardTab'
 import DocumentScanTab from './components/DocumentScanTab'
 import LogsTab from './components/LogsTab'
@@ -126,7 +126,7 @@ function App() {
                   }`}
                   aria-hidden="true"
                 />
-                <span>Branch Daemon&apos;a bağlanılamıyor — yeniden deneniyor…</span>
+                <span>Branch Daemon&apos;a baÄŸlanÄ±lamÄ±yor â€” yeniden deneniyorâ€¦</span>
               </div>
             </div>
           )
@@ -143,8 +143,8 @@ function App() {
             onActiveBordroChange={setActiveBordroId}
           />
         }
-        bordroScanContent={<BordroScanTab activeBordroId={activeBordroId} />}
         documentScanContent={<DocumentScanTab />}
+        chequeDebugContent={<ChequeDebugTab />}
         logsContent={<LogsTab />}
       />
     </LogContext.Provider>
@@ -152,3 +152,4 @@ function App() {
 }
 
 export default App
+

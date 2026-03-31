@@ -1,6 +1,6 @@
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
 import clsx from 'clsx'
-import { Database, FileText, FileUp, History, LayoutDashboard, Menu, Moon, ScanLine, Server, Sun } from 'lucide-react'
+import { Binary, Database, FileText, FileUp, History, LayoutDashboard, Menu, Moon, Server, Sun } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { Tab as AppTab } from '../types'
 
@@ -13,8 +13,8 @@ type TabLayoutProps = {
   onThemeToggle: () => void
   dashboardContent?: ReactNode
   bordroContent?: ReactNode
-  bordroScanContent?: ReactNode
   documentScanContent?: ReactNode
+  chequeDebugContent?: ReactNode
   logsContent?: ReactNode
   contentDisabled?: boolean
   contentOverlay?: ReactNode
@@ -23,17 +23,17 @@ type TabLayoutProps = {
 const tabs: Array<{ id: AppTab; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'bordro', label: 'Bordro', icon: FileText },
-  { id: 'bordroScan', label: 'Bordro Tarama', icon: ScanLine },
-  { id: 'document-scan', label: 'Doküman Tara', icon: FileUp },
+  { id: 'document-scan', label: 'Dokuman Tara', icon: FileUp },
+  { id: 'cheque-debug', label: 'Cheque Debug', icon: Binary },
   { id: 'logs', label: 'Logs', icon: History },
 ]
 
 const tabTitleMap: Record<AppTab, string> = {
   dashboard: 'Dashboard',
   bordro: 'Bordro',
-  bordroScan: 'Bordro Tarama',
-  'document-scan': 'Doküman Tarama',
-  logs: 'Log Kayıtları',
+  'document-scan': 'Dokuman Tarama',
+  'cheque-debug': 'Cheque Debug',
+  logs: 'Log Kayitlari',
 }
 
 export function TabLayout({
@@ -45,8 +45,8 @@ export function TabLayout({
   onThemeToggle,
   dashboardContent,
   bordroContent,
-  bordroScanContent,
   documentScanContent,
+  chequeDebugContent,
   logsContent,
   contentDisabled = false,
   contentOverlay,
@@ -165,7 +165,7 @@ export function TabLayout({
                     setIsSidebarCollapsed((prev) => !prev)
                   }}
                   className="hidden h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 lg:inline-flex"
-                  aria-label={isSidebarCollapsed ? 'Sidebarı genişlet' : 'Sidebarı daralt'}
+                  aria-label={isSidebarCollapsed ? 'Sidebari genislet' : 'Sidebari daralt'}
                 >
                   <Menu className="h-4 w-4" />
                 </button>
@@ -173,7 +173,7 @@ export function TabLayout({
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{pageTitle}</h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Daemon ve scanner operasyonlarını tek panelden yönetin.
+                    Daemon ve scanner operasyonlarini tek panelden yonetin.
                   </p>
                 </div>
               </div>
@@ -221,20 +221,19 @@ export function TabLayout({
                 )}
               >
                 <TabPanels className="h-full min-h-0">
-                  <TabPanel unmount={false} className="h-full min-h-0 overflow-auto">
+                  <TabPanel className="h-full min-h-0 overflow-auto">
                     {dashboardContent ?? <div>Dashboard placeholder</div>}
                   </TabPanel>
-                  <TabPanel unmount={false} className="h-full min-h-0 overflow-auto">
+                  <TabPanel className="h-full min-h-0 overflow-auto">
                     {bordroContent ?? <div>Bordro placeholder</div>}
                   </TabPanel>
-                  <TabPanel unmount={false} className="h-full min-h-0 overflow-auto">
-                    {bordroScanContent ?? <div>Bordro tarama placeholder</div>}
+                  <TabPanel className="h-full min-h-0 overflow-auto">
                     {documentScanContent ?? <div>Document scan placeholder</div>}
                   </TabPanel>
-                  <TabPanel unmount={false} className="h-full min-h-0 overflow-auto">
-                    {documentScanContent ?? <div>Document scan placeholder</div>}
+                  <TabPanel className="h-full min-h-0 overflow-auto">
+                    {chequeDebugContent ?? <div>Cheque debug placeholder</div>}
                   </TabPanel>
-                  <TabPanel unmount={false} className="h-full min-h-0 overflow-auto">
+                  <TabPanel className="h-full min-h-0 overflow-auto">
                     {logsContent ?? <div>Logs placeholder</div>}
                   </TabPanel>
                 </TabPanels>

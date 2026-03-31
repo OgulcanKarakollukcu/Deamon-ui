@@ -13,7 +13,8 @@ import type {
   CreateBordroRequest,
   SessionBordroEntry,
 } from '../types'
-import ScanTab, { type ScanReservationState, type ScanSettings } from './ScanTab'
+import { type ScanReservationState, type ScanSettings } from './ScanTab'
+import UnifiedScanTab from './UnifiedScanTab'
 
 type BordroTabProps = {
   activeBordroId: string | null
@@ -1089,7 +1090,7 @@ export default function BordroTab({
               ) : null}
 
               <div className="overflow-y-auto p-4 md:p-6">
-                <ScanTab
+                <UnifiedScanTab
                   activeBordroId={currentScanBordroId}
                   expectedChequeCount={currentScanBordro?.cheque_count ?? null}
                   initialScannedCheques={currentScanCheques}
@@ -1098,6 +1099,7 @@ export default function BordroTab({
                   onScannedChequesChange={handleModalScannedChequesChange}
                   onScanSettingsChange={handleScanSettingsChange}
                   onReservationStateChange={setScanReservationState}
+                  defaultMode="CHEQUE"
                 />
               </div>
             </div>

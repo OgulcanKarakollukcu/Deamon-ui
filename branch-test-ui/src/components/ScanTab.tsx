@@ -12,7 +12,7 @@ import {
 } from '../services/branchClient'
 import type { ChequeMetadata, ScanColorMode, ScanPageSize, Scanner } from '../types'
 
-type ScanTabProps = {
+export type ScanTabProps = {
   activeBordroId: string | null
   expectedChequeCount?: number | null
   initialScannedCheques?: ChequeMetadata[]

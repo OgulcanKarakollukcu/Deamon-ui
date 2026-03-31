@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
-import { FileScan, Loader2, RefreshCcw, ScanLine } from 'lucide-react'
+﻿import { useEffect, useMemo, useState } from 'react'
+import { FileScan, ImageIcon, Loader2, RefreshCcw, ScanLine } from 'lucide-react'
 import { useLogContext } from '../context/LogContext'
-import { listScanners, releaseScanner, reserveScanner, scanDocument } from '../services'
+import { getStorageObject, listScanners, releaseScanner, reserveScanner, scanDocumentStream } from '../services'
 import type {
   DocumentScanMetadata,
+  DocumentScanProgress,
   DocumentType,
   ScanColorMode,
   ScanPageSize,
@@ -55,6 +56,23 @@ type ScanForm = {
   pageSize: ScanPageSize
 }
 
+type SelectedPageState = {
+  sheetIndex: number
+  side: 'front' | 'back'
+}
+
+type ViewerState = {
+  isLoading: boolean
+  objectUrl: string | null
+  objectPath: string | null
+  mimeType: string | null
+  byteSize: number | null
+  imageWidth: number | null
+  imageHeight: number | null
+  renderFailed: boolean
+  error: string | null
+}
+
 const DEFAULT_FORM: ScanForm = {
   documentId: '',
   documentType: 'GENERIC',
@@ -65,11 +83,46 @@ const DEFAULT_FORM: ScanForm = {
   pageSize: 'A4',
 }
 
+const INITIAL_VIEWER_STATE: ViewerState = {
+  isLoading: false,
+  objectUrl: null,
+  objectPath: null,
+  mimeType: null,
+  byteSize: null,
+  imageWidth: null,
+  imageHeight: null,
+  renderFailed: false,
+  error: null,
+}
+
 let cachedSessionId: string | null = null
+
+function createFallbackSessionId(): string {
+  const cryptoApi = globalThis.crypto
+  if (cryptoApi?.getRandomValues) {
+    const bytes = new Uint8Array(16)
+    cryptoApi.getRandomValues(bytes)
+    bytes[6] = (bytes[6] & 0x0f) | 0x40
+    bytes[8] = (bytes[8] & 0x3f) | 0x80
+
+    const hex = [...bytes].map((value) => value.toString(16).padStart(2, '0'))
+    return [
+      hex.slice(0, 4).join(''),
+      hex.slice(4, 6).join(''),
+      hex.slice(6, 8).join(''),
+      hex.slice(8, 10).join(''),
+      hex.slice(10, 16).join(''),
+    ].join('-')
+  }
+
+  return `session-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
 
 function getStableSessionId(): string {
   if (cachedSessionId === null) {
-    cachedSessionId = crypto.randomUUID()
+    const cryptoApi = globalThis.crypto
+    cachedSessionId =
+      typeof cryptoApi?.randomUUID === 'function' ? cryptoApi.randomUUID() : createFallbackSessionId()
   }
 
   return cachedSessionId
@@ -142,10 +195,81 @@ function getSettingStatus(verified: boolean, matches: boolean): { label: string;
   }
 
   return {
-    label: 'Farklılandı',
+    label: 'Farklı',
     badgeClassName:
       'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-300',
   }
+}
+
+function inferMimeType(path: string, contentType: string | null): string {
+  const normalizedContentType = contentType?.trim() ?? ''
+  if (normalizedContentType.length > 0) {
+    return normalizedContentType
+  }
+
+  const normalizedPath = path.trim().toLowerCase()
+  if (normalizedPath.endsWith('.png')) {
+    return 'image/png'
+  }
+  if (normalizedPath.endsWith('.jpg') || normalizedPath.endsWith('.jpeg')) {
+    return 'image/jpeg'
+  }
+  return 'application/octet-stream'
+}
+
+async function readImageDimensions(
+  blob: Blob,
+  mimeType: string,
+): Promise<{ width: number; height: number } | null> {
+  if (!mimeType.startsWith('image/')) {
+    return null
+  }
+
+  if (typeof globalThis.createImageBitmap === 'function') {
+    try {
+      const bitmap = await globalThis.createImageBitmap(blob)
+      const dimensions = { width: bitmap.width, height: bitmap.height }
+      bitmap.close()
+      return dimensions
+    } catch {
+      // Fall back to Image decoding below.
+    }
+  }
+
+  return await new Promise((resolve) => {
+    const objectUrl = URL.createObjectURL(blob)
+    const image = new Image()
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve({ width: image.naturalWidth, height: image.naturalHeight })
+    }
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve(null)
+    }
+
+    image.src = objectUrl
+  })
+}
+
+function formatViewerInfo(viewer: ViewerState): string[] {
+  const info: string[] = []
+  if (viewer.mimeType) {
+    info.push(viewer.mimeType)
+  }
+  if (viewer.byteSize !== null) {
+    info.push(
+      viewer.byteSize < 1024
+        ? `${viewer.byteSize.toString()} B`
+        : `${(viewer.byteSize / 1024).toFixed(1)} KB`,
+    )
+  }
+  if (viewer.imageWidth !== null && viewer.imageHeight !== null) {
+    info.push(`${viewer.imageWidth.toString()} x ${viewer.imageHeight.toString()} px`)
+  }
+  return info
 }
 
 export default function DocumentScanTab() {
@@ -163,6 +287,10 @@ export default function DocumentScanTab() {
   const [hasListedScanners, setHasListedScanners] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<DocumentScanMetadata | null>(null)
+  const [completedSheetCount, setCompletedSheetCount] = useState<number>(0)
+  const [totalSheetCount, setTotalSheetCount] = useState<number>(0)
+  const [selectedPage, setSelectedPage] = useState<SelectedPageState | null>(null)
+  const [viewer, setViewer] = useState<ViewerState>(INITIAL_VIEWER_STATE)
 
   const activeScanner = useMemo(() => {
     if (selectedScannerKey === null) {
@@ -171,6 +299,13 @@ export default function DocumentScanTab() {
 
     return scanners.find((scanner) => getScannerSelectionKey(scanner) === selectedScannerKey) ?? null
   }, [scanners, selectedScannerKey])
+  const selectedDocumentPage = useMemo(() => {
+    if (result === null || selectedPage === null) {
+      return null
+    }
+
+    return result.pages.find((page) => page.sheet_index === selectedPage.sheetIndex) ?? null
+  }, [result, selectedPage])
 
   async function handleListScanners(): Promise<void> {
     setIsListing(true)
@@ -207,6 +342,135 @@ export default function DocumentScanTab() {
   useEffect(() => {
     void handleListScanners()
   }, [])
+
+  useEffect(() => {
+    if (result === null || result.pages.length === 0) {
+      setSelectedPage(null)
+      return
+    }
+
+    setSelectedPage((previous) => {
+      if (previous !== null) {
+        const existingPage = result.pages.find((page) => page.sheet_index === previous.sheetIndex)
+        if (existingPage) {
+          if (previous.side === 'back' && !existingPage.back_image_path) {
+            return { sheetIndex: previous.sheetIndex, side: 'front' }
+          }
+          return previous
+        }
+      }
+
+      const latestPage = result.pages[result.pages.length - 1]
+      return {
+        sheetIndex: latestPage.sheet_index,
+        side: 'front',
+      }
+    })
+  }, [result])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadPreview(): Promise<void> {
+      if (selectedPage === null || selectedDocumentPage === null) {
+        setViewer((previous) => {
+          if (previous.objectUrl) {
+            URL.revokeObjectURL(previous.objectUrl)
+          }
+          return INITIAL_VIEWER_STATE
+        })
+        return
+      }
+
+      const objectPath =
+        selectedPage.side === 'back'
+          ? selectedDocumentPage.back_image_path
+          : selectedDocumentPage.front_image_path
+      const contentType =
+        selectedPage.side === 'back'
+          ? selectedDocumentPage.back_image_content_type
+          : selectedDocumentPage.front_image_content_type
+
+      if (!objectPath) {
+        setViewer((previous) => {
+          if (previous.objectUrl) {
+            URL.revokeObjectURL(previous.objectUrl)
+          }
+          return {
+            ...INITIAL_VIEWER_STATE,
+            error: selectedPage.side === 'back' ? 'Arka yuz yok.' : 'On yuz bulunamadi.',
+          }
+        })
+        return
+      }
+
+      setViewer((previous) => ({
+        ...previous,
+        isLoading: true,
+        error: null,
+        renderFailed: false,
+      }))
+
+      try {
+        const objectBytes = await getStorageObject(objectPath)
+        const mimeType = inferMimeType(objectPath, contentType)
+        const blobBytes = new Uint8Array(objectBytes)
+        const blob = new Blob([blobBytes.buffer], { type: mimeType })
+        const objectUrl = URL.createObjectURL(blob)
+        const dimensions = await readImageDimensions(blob, mimeType)
+
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl)
+          return
+        }
+
+        setViewer((previous) => {
+          if (previous.objectUrl) {
+            URL.revokeObjectURL(previous.objectUrl)
+          }
+          return {
+            isLoading: false,
+            objectUrl,
+            objectPath,
+            mimeType,
+            byteSize: objectBytes.length,
+            imageWidth: dimensions?.width ?? null,
+            imageHeight: dimensions?.height ?? null,
+            renderFailed: false,
+            error: null,
+          }
+        })
+      } catch (previewError) {
+        if (cancelled) {
+          return
+        }
+
+        setViewer((previous) => {
+          if (previous.objectUrl) {
+            URL.revokeObjectURL(previous.objectUrl)
+          }
+          return {
+            ...INITIAL_VIEWER_STATE,
+            error: getErrorMessage(previewError),
+          }
+        })
+      }
+    }
+
+    void loadPreview()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedDocumentPage, selectedPage])
+
+  useEffect(() => {
+    return () => {
+      if (viewer.objectUrl) {
+        URL.revokeObjectURL(viewer.objectUrl)
+      }
+    }
+  }, [viewer.objectUrl])
 
   async function handleReserve(targetScanner?: Scanner): Promise<void> {
     setError(null)
@@ -285,13 +549,16 @@ export default function DocumentScanTab() {
 
     setError(null)
     setIsScanning(true)
+    setResult(null)
+    setCompletedSheetCount(0)
+    setTotalSheetCount(sheetCount)
 
     try {
       addLog(
         'info',
         `İstek: scanDocument {scanner_id:${scannerId}, session_id:${sessionId}, document_id:${documentId}, document_type:${form.documentType}, sheet_count:${sheetCount.toString()}, duplex:${form.duplex ? 'true' : 'false'}, dpi:${form.dpi.toString()}, color_mode:${form.colorMode}, page_size:${form.pageSize}}`,
       )
-      const response = await scanDocument({
+      await scanDocumentStream({
         scanner_id: scannerId,
         session_id: sessionId,
         document_id: documentId,
@@ -301,12 +568,16 @@ export default function DocumentScanTab() {
         dpi: form.dpi,
         color_mode: form.colorMode,
         page_size: form.pageSize,
+        onProgress: async (progress: DocumentScanProgress) => {
+          setResult(progress.metadata)
+          setCompletedSheetCount(progress.completed_sheet_count)
+          setTotalSheetCount(progress.total_sheet_count)
+          addLog(
+            'info',
+            `Yanıt: scanDocument sheet=${progress.completed_sheet_count.toString()}/${progress.total_sheet_count.toString()} object_path=${progress.metadata.object_path}`,
+          )
+        },
       })
-      setResult(response)
-      addLog(
-        'info',
-        `Yanıt: scanDocument object_path=${response.object_path}, pages=${response.page_count.toString()}`,
-      )
     } catch (scanError) {
       const message = getErrorMessage(scanError)
       setError(message)
@@ -318,6 +589,11 @@ export default function DocumentScanTab() {
 
   const activeScannerId = activeScanner?.scanner_id ?? null
   const scanDisabled = !isReserved || (reservedScannerId ?? activeScannerId) === null
+  const viewerInfo = useMemo(() => formatViewerInfo(viewer), [viewer])
+  const scannedPageCount = result?.pages.length ?? 0
+  const remainingPageCount = Math.max(totalSheetCount - scannedPageCount, 0)
+  const progressPercent =
+    totalSheetCount > 0 ? Math.min(100, Math.round((scannedPageCount / totalSheetCount) * 100)) : 0
   const effectiveSettingRows = result
     ? [
         {
@@ -369,7 +645,7 @@ export default function DocumentScanTab() {
             className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             {isListing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-            {isListing ? 'Yenileniyor…' : 'Tarayıcıları Yenile'}
+            {isListing ? 'Yenileniyor...' : 'Tarayıcıları Yenile'}
           </button>
         </div>
 
@@ -477,7 +753,7 @@ export default function DocumentScanTab() {
               disabled={isReleasing}
               className="rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/40 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-slate-800"
             >
-              {isReleasing ? 'Bırakılıyor…' : 'Rezervasyonu Bırak'}
+              {isReleasing ? 'Bırakılıyor...' : 'Rezervasyonu Bırak'}
             </button>
           </div>
         ) : null}
@@ -627,13 +903,21 @@ export default function DocumentScanTab() {
             className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
           >
             {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileScan className="h-4 w-4" />}
-            {isScanning ? 'Doküman Taranıyor…' : 'Dokümanı Tara'}
+            {isScanning ? 'Doküman Taranıyor...' : 'Dokümanı Tara'}
           </button>
 
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Bu çağrı seçilen scanner üzerinde kullanıcıdan alınan ayarlarla genel doküman taraması yapar.
           </p>
         </div>
+
+        {isScanning ? (
+          <div className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-800 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300">
+            {totalSheetCount > 0
+              ? `${completedSheetCount.toString()}/${totalSheetCount.toString()} yaprak UI'a ulaştı, tarama devam ediyor...`
+              : 'Tarama başladı, ilk yapraklar bekleniyor...'}
+          </div>
+        ) : null}
       </section>
 
       {error ? (
@@ -643,122 +927,321 @@ export default function DocumentScanTab() {
       ) : null}
 
       <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Tarama Sonucu</h3>
-          <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-            {result ? `${result.page_count.toString()} sayfa` : 'Henüz tarama yok'}
-          </span>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Tarama Sonuçları</h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Çek ekranındaki gibi solda akış, sağda sabit önizleme olacak şekilde düzenlendi.
+            </p>
+          </div>
+
+          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+            <span>{result ? `${result.pages.length.toString()} yaprak geldi` : 'Henüz sonuç yok'}</span>
+            {totalSheetCount > 0 ? <span>/ {totalSheetCount.toString()} bekleniyor</span> : null}
+          </div>
         </div>
 
-        {!result ? (
-          <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400">
-            Henüz doküman taranmadı.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Doküman
+        {(isScanning || result !== null) ? (
+          <div className="overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-sky-50 p-4 shadow-sm dark:border-cyan-500/30 dark:from-cyan-500/10 dark:via-slate-950 dark:to-sky-500/10">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
+                  Canlı Akış
                 </p>
-                <p className="mt-2 font-mono text-xs text-slate-500 dark:text-slate-400">document_id</p>
-                <p className="break-all font-mono text-xs text-slate-700 dark:text-slate-300">{result.document_id}</p>
-                <p className="mt-2 font-mono text-xs text-slate-500 dark:text-slate-400">object_path</p>
-                <p className="break-all font-mono text-xs text-slate-700 dark:text-slate-300">{result.object_path}</p>
+                <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {isScanning ? 'İlk tamamlanan yapraklar hazır, tarama akıyor.' : 'Doküman taraması tamamlandı.'}
+                </h4>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  {totalSheetCount > 0
+                    ? `${scannedPageCount.toString()}/${totalSheetCount.toString()} yaprak işlendi.`
+                    : `${scannedPageCount.toString()} yaprak hazır.`}
+                </p>
+                {selectedPage ? (
+                  <p className="text-xs font-medium text-cyan-700 dark:text-cyan-300">
+                    Aktif seçim: Yaprak {(selectedPage.sheetIndex + 1).toString()} {selectedPage.side === 'back' ? 'arka' : 'ön'}
+                  </p>
+                ) : null}
               </div>
-
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  İstek Özeti
-                </p>
-                <dl className="mt-2 space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                  <div className="flex items-center justify-between gap-3">
-                    <dt>Sheet count</dt>
-                    <dd className="font-mono">{result.sheet_count}</dd>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <dt>Page count</dt>
-                    <dd className="font-mono">{result.page_count}</dd>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <dt>Kağıt</dt>
-                    <dd>{formatPageSizeLabel(result.page_size)}</dd>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <dt>Renk</dt>
-                    <dd>{formatScanColorModeLabel(result.color_mode)}</dd>
-                  </div>
-                </dl>
-              </div>
-
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Uygulanan Ayarlar
-                </p>
-                <div className="mt-2 space-y-2">
-                  {effectiveSettingRows.map((row) => (
-                    <div key={row.key} className="rounded-md border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-950/60">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{row.label}</p>
-                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${row.status.badgeClassName}`}>
-                          {row.status.label}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        İstenen: <span className="font-medium text-slate-700 dark:text-slate-300">{row.requested}</span>
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Uygulanan: <span className="font-medium text-slate-700 dark:text-slate-300">{row.effective}</span>
-                      </p>
-                    </div>
-                  ))}
+              <div className="grid min-w-[220px] gap-2 sm:grid-cols-3">
+                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                    Hazır
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                    {scannedPageCount.toString()}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                    Kalan
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                    {remainingPageCount.toString()}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                    İlerleme
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                    %{progressPercent.toString()}
+                  </p>
                 </div>
               </div>
             </div>
-
-            <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Sayfa Yolları</h4>
-              <div className="space-y-3">
-                {result.pages.map((page) => (
-                  <article
-                    key={`${page.sheet_index}-${page.front_image_path}`}
-                    className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        Yaprak {page.sheet_index + 1}
-                      </p>
-                      <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                        {page.back_image_path ? 'Ön + Arka' : 'Sadece Ön'}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          Front
-                        </p>
-                        <p className="mt-2 break-all font-mono text-xs text-slate-700 dark:text-slate-300">
-                          {page.front_image_path}
-                        </p>
-                      </div>
-
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          Back
-                        </p>
-                        <p className="mt-2 break-all font-mono text-xs text-slate-700 dark:text-slate-300">
-                          {page.back_image_path ?? '-'}
-                        </p>
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
+            <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-800">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-emerald-500 transition-all duration-500"
+                style={{ width: `${progressPercent.toString()}%` }}
+              />
             </div>
           </div>
-        )}
+        ) : null}
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] xl:items-start">
+          <div className="space-y-4">
+            {result ? (
+              <>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                      Document ID
+                    </p>
+                    <p className="mt-2 break-all font-mono text-sm text-slate-900 dark:text-slate-100">
+                      {result.document_id}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                      Taranan
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      {result.pages.length.toString()} / {result.sheet_count.toString()} yaprak
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                      Etkin DPI
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      {result.effective_dpi.toString()}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                      Mod
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      {formatScanColorModeLabel(result.effective_color_mode)} /{' '}
+                      {formatPageSizeLabel(result.page_size)}
+                    </p>
+                  </div>
+                </div>
+
+                {effectiveSettingRows.length > 0 ? (
+                  <div className="grid gap-3 lg:grid-cols-3">
+                    {effectiveSettingRows.map((row) => (
+                      <article
+                        key={row.key}
+                        className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{row.label}</p>
+                          <span
+                            className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-medium ${row.status.badgeClassName}`}
+                          >
+                            {row.status.label}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">İstenen</p>
+                        <p className="text-sm text-slate-700 dark:text-slate-200">{row.requested}</p>
+                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Uygulanan</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{row.effective}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div className="space-y-3">
+                  {result.pages.map((page) => {
+                    const isSelectedFront =
+                      selectedPage?.sheetIndex === page.sheet_index && selectedPage.side === 'front'
+                    const isSelectedBack =
+                      selectedPage?.sheetIndex === page.sheet_index && selectedPage.side === 'back'
+
+                    return (
+                      <article
+                        key={page.sheet_index}
+                        className={`rounded-2xl border p-4 transition ${
+                          isSelectedFront || isSelectedBack
+                            ? 'border-cyan-300 bg-cyan-50/50 shadow-sm dark:border-cyan-500/40 dark:bg-cyan-500/5'
+                            : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40'
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0 space-y-1">
+                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                              Yaprak {(page.sheet_index + 1).toString()}
+                            </p>
+                            <p className="text-sm text-slate-700 dark:text-slate-300">
+                              {page.back_image_path ? 'Ön ve arka görüntü hazır.' : 'Yalnızca ön görüntü mevcut.'}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedPage({ sheetIndex: page.sheet_index, side: 'front' })
+                              }}
+                              className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+                                isSelectedFront
+                                  ? 'border-cyan-300 bg-cyan-100 text-cyan-800 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300'
+                                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              Önizle Ön
+                            </button>
+
+                            {page.back_image_path ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPage({ sheetIndex: page.sheet_index, side: 'back' })
+                                }}
+                                className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+                                  isSelectedBack
+                                    ? 'border-cyan-300 bg-cyan-100 text-cyan-800 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300'
+                                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                Önizle Arka
+                              </button>
+                            ) : null}
+
+                            <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                              {page.back_image_path ? 'Ön + Arka' : 'Sadece Ön'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+                            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Front
+                            </p>
+                            <p className="mt-2 break-all font-mono text-xs text-slate-700 dark:text-slate-300">
+                              {page.front_image_path}
+                            </p>
+                          </div>
+
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+                            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Back
+                            </p>
+                            <p className="mt-2 break-all font-mono text-xs text-slate-700 dark:text-slate-300">
+                              {page.back_image_path ?? '-'}
+                            </p>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+                {isScanning
+                  ? 'Tarama başladı. İlk tamamlanan yaprak geldiğinde soldaki akış listesi dolacak.'
+                  : 'Tarama sonuçları burada listelenecek.'}
+              </div>
+            )}
+          </div>
+
+          <aside className="xl:sticky xl:top-4">
+            <section className="min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                    Sabit Önizleme
+                  </p>
+                  <h4 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
+                    {selectedPage
+                      ? `Yaprak ${(selectedPage.sheetIndex + 1).toString()} ${selectedPage.side === 'back' ? 'Arka' : 'Ön'}`
+                      : 'Önizleme Hazır Değil'}
+                  </h4>
+                </div>
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  Rahat İnceleme
+                </span>
+              </div>
+
+              <div className="space-y-4 p-4">
+                <div className="flex min-h-[380px] items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+                  {selectedDocumentPage === null || selectedPage === null ? (
+                    <div className="space-y-2 text-center">
+                      <ImageIcon className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-700" />
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        Önizleme için soldan bir yaprak seçin.
+                      </p>
+                    </div>
+                  ) : viewer.isLoading ? (
+                    <div className="h-72 w-full animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+                  ) : viewer.error ? (
+                    <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                      {viewer.error}
+                    </p>
+                  ) : viewer.objectUrl && !viewer.renderFailed ? (
+                    <img
+                      src={viewer.objectUrl}
+                      alt={`document-${result?.document_id ?? 'preview'}-${selectedPage.side}-${selectedPage.sheetIndex.toString()}`}
+                      onError={() => {
+                        setViewer((previous) => ({ ...previous, renderFailed: true }))
+                      }}
+                      className="max-h-[620px] w-full rounded-xl object-contain"
+                    />
+                  ) : (
+                    <div className="space-y-2 text-center">
+                      <ImageIcon className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-700" />
+                      <p className="text-sm text-slate-500 dark:text-slate-400">Görsel önizlemesi hazır değil.</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                      Seçili Görsel
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {selectedPage
+                        ? `Yaprak ${(selectedPage.sheetIndex + 1).toString()} ${selectedPage.side === 'back' ? 'Arka' : 'Ön'}`
+                        : '-'}
+                    </p>
+                  </div>
+
+                  {viewerInfo.length > 0 ? (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Görsel: {viewerInfo.join(' | ')}</p>
+                  ) : null}
+
+                  <p className="break-all font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                    {selectedDocumentPage
+                      ? selectedPage?.side === 'back'
+                        ? selectedDocumentPage.back_image_path ?? '-'
+                        : selectedDocumentPage.front_image_path
+                      : '-'}
+                  </p>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
       </section>
     </div>
   )
 }
+

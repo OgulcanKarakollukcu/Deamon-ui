@@ -1,4 +1,4 @@
-export type PcDaemon = {
+﻿export type PcDaemon = {
   pc_daemon_id: string
   pc_daemon_addr: string
   scan_grpc_addr: string
@@ -22,8 +22,49 @@ export type Scanner = {
   pc_daemon_addr: string
   scan_grpc_addr: string
   pc_daemon_status: 'available' | 'reserved' | 'unavailable'
+  is_reserved?: boolean
+  reserved_session_id?: string
   last_heartbeat_unix: number
   last_heartbeat?: string
+}
+
+export type ManagementDiagnostics = {
+  node_role: string
+  generated_at_unix: number
+  online_pc_daemon_count: number
+  scanner_count: number
+  available_scanner_count: number
+  reserved_scanner_count: number
+  active_reservation_count: number
+  expired_reservation_count: number
+  reservation_timeout_secs: number
+  heartbeat_timeout_secs: number
+}
+
+export type ReservationInfo = {
+  scanner_id: string
+  session_id: string
+  created_at_unix: number
+  last_activity_unix: number
+  expires_at_unix: number
+  is_expired: boolean
+}
+
+export type SupportSnapshot = {
+  diagnostics: ManagementDiagnostics
+  daemons: PcDaemon[]
+  scanners: Scanner[]
+  reservations: ReservationInfo[]
+}
+
+export type ResetScannerResponse = {
+  reset: boolean
+  released_session_id: string
+}
+
+export type CleanupReservationsResponse = {
+  released_count: number
+  released_reservations: ReservationInfo[]
 }
 
 export type BordroEntry = {
@@ -110,6 +151,17 @@ export type ChequeMetadata = {
   back_path: string
 }
 
+export type ChequeImageDebugResult = {
+  micr_data: string
+  qr_data: string
+  micr_qr_match: boolean
+  effective_dpi: number
+  image_size_bytes: number
+  micr_ms: number
+  qr_ms: number
+  total_ms: number
+}
+
 export type ScanBordroProgress = {
   cheque: ChequeMetadata
   completed_count: number
@@ -143,6 +195,12 @@ export type DocumentScanMetadata = {
   color_mode_verified: boolean
 }
 
+export type DocumentScanProgress = {
+  metadata: DocumentScanMetadata
+  completed_sheet_count: number
+  total_sheet_count: number
+}
+
 export type LogEntry = {
   id: number
   ts: string
@@ -150,4 +208,5 @@ export type LogEntry = {
   msg: string
 }
 
-export type Tab = 'dashboard' | 'bordro' | 'bordroScan' | 'document-scan' | 'logs'
+export type Tab = 'dashboard' | 'bordro' | 'document-scan' | 'cheque-debug' | 'logs'
+

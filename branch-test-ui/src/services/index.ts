@@ -1,6 +1,10 @@
 export {
+  analyzeChequeImage,
   chequeHealth,
+  cleanupReservations,
   createBordro,
+  getDiagnostics,
+  getSupportSnapshot,
   getStorageObject,
   getStorageObjectWithContentType,
   listScanners,
@@ -8,9 +12,11 @@ export {
   releaseScanner,
   resolveStorageObjectPaths,
   reserveScanner,
+  resetScanner,
   scanBordroDocument,
   scanCheque,
   scanDocument,
+  scanDocumentStream,
   scanBordro,
   scanBordroStream,
 } from './branchClient'
