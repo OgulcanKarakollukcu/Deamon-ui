@@ -13,6 +13,7 @@ import type {
   CreateBordroRequest,
   SessionBordroEntry,
 } from '../types'
+import { normalizeMicrValue, parseMicrFieldsWithQrHint, parseQrFields } from '../utils/chequeFields'
 import { type ScanReservationState, type ScanSettings } from './ScanTab'
 import UnifiedScanTab from './UnifiedScanTab'
 
@@ -668,6 +669,16 @@ export default function BordroTab({
       ? `${viewer.imageWidth.toString()} x ${viewer.imageHeight.toString()} px`
       : null,
   ].filter((value): value is string => Boolean(value))
+  const selectedRawMicr = selectedCheque?.micr_data?.trim() || selectedCheque?.micr?.trim() || ''
+  const selectedQr =
+    selectedCheque?.qr_data?.trim() || selectedCheque?.qr?.trim() || ''
+  const selectedMicrFields = parseMicrFieldsWithQrHint(selectedRawMicr, selectedQr)
+  const selectedMicr = selectedMicrFields
+    ? normalizeMicrValue(
+        `${selectedMicrFields.chequeSerialNo}${selectedMicrFields.bankCode}${selectedMicrFields.branchCode}${selectedMicrFields.accountNumber}`,
+      )
+    : normalizeMicrValue(selectedRawMicr)
+  const selectedQrFields = parseQrFields(selectedQr)
 
   return (
     <div className="h-full min-h-0 space-y-4">
@@ -1032,14 +1043,86 @@ export default function BordroTab({
                   Görsel: {viewerInfo.join(' | ')}
                 </p>
               ) : null}
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                MICR KOD :{' '}
-                {selectedCheque?.micr ? (
-                  <span className="font-mono text-slate-900 dark:text-slate-100">{selectedCheque.micr}</span>
-                ) : (
-                  <span className="text-slate-400 dark:text-slate-500">&nbsp;</span>
-                )}
-              </p>
+              <div className="grid gap-2 md:grid-cols-2">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                  MICR:{' '}
+                  {selectedMicr ? (
+                    <span className="font-mono text-slate-900 dark:text-slate-100">{selectedMicr}</span>
+                  ) : (
+                    <span className="text-slate-400 dark:text-slate-500">-</span>
+                  )}
+                </p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                  QR:{' '}
+                  {selectedQr ? (
+                    <span className="break-all font-mono text-slate-900 dark:text-slate-100">{selectedQr}</span>
+                  ) : (
+                    <span className="text-slate-400 dark:text-slate-500">-</span>
+                  )}
+                </p>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    MICR Alanlari
+                  </p>
+                  <dl className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+                    <div className="flex items-start justify-between gap-3">
+                      <dt>Çek Seri No</dt>
+                      <dd className="font-mono">{selectedMicrFields?.chequeSerialNo ?? '-'}</dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <dt>Banka Kodu</dt>
+                      <dd className="font-mono">{selectedMicrFields?.bankCode ?? '-'}</dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <dt>Şube Kodu</dt>
+                      <dd className="font-mono">{selectedMicrFields?.branchCode ?? '-'}</dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <dt>Hesap No</dt>
+                      <dd className="break-all font-mono">
+                        {selectedMicrFields?.accountNumber ?? '-'}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    QR Alanlari
+                  </p>
+                  <dl className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+                    <div className="flex items-start justify-between gap-3">
+                      <dt>Çek Seri No</dt>
+                      <dd className="font-mono">{selectedQrFields?.chequeSerialNo ?? '-'}</dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <dt>Banka Kodu</dt>
+                      <dd className="font-mono">{selectedQrFields?.bankCode ?? '-'}</dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <dt>Şube Kodu</dt>
+                      <dd className="font-mono">{selectedQrFields?.branchCode ?? '-'}</dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <dt>Hesap No</dt>
+                      <dd className="break-all font-mono">
+                        {selectedQrFields?.accountNumber ?? '-'}
+                      </dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <dt>TCKN/VKN</dt>
+                      <dd className="font-mono">{selectedQrFields?.identityNumber ?? '-'}</dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <dt>Mersis No</dt>
+                      <dd className="break-all font-mono">
+                        {selectedQrFields?.mersisNumber ?? '-'}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
             </div>
           </div>
         </section>

@@ -3,6 +3,7 @@ import { Upload, Search, Clock3, Binary } from 'lucide-react'
 import { analyzeChequeImage } from '../services'
 import { useLogContext } from '../context/LogContext'
 import type { ChequeImageDebugResult } from '../types'
+import { normalizeMicrValue, parseMicrFieldsWithQrHint, parseQrFields } from '../utils/chequeFields'
 
 function formatBytes(value: number): string {
   if (value < 1024) {
@@ -43,6 +44,17 @@ export default function ChequeDebugTab() {
     const parsed = Number.parseInt(dpi, 10)
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 300
   }, [dpi])
+  const parsedMicrFields =
+    result ? parseMicrFieldsWithQrHint(result.micr_data, result.qr_data) : null
+  const normalizedMicr =
+    parsedMicrFields !== null
+      ? normalizeMicrValue(
+          `${parsedMicrFields.chequeSerialNo}${parsedMicrFields.bankCode}${parsedMicrFields.branchCode}${parsedMicrFields.accountNumber}`,
+        )
+      : result
+        ? normalizeMicrValue(result.micr_data)
+        : ''
+  const parsedQrFields = result ? parseQrFields(result.qr_data) : null
 
   async function handleAnalyze(): Promise<void> {
     if (selectedFile === null) {
@@ -169,11 +181,55 @@ export default function ChequeDebugTab() {
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">MICR</div>
-                <div className="mt-2 break-all font-mono text-sm text-slate-900 dark:text-slate-100">{result.micr_data || '-'}</div>
+                <div className="mt-2 break-all font-mono text-sm text-slate-900 dark:text-slate-100">{normalizedMicr || '-'}</div>
+                <dl className="mt-3 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+                  <div className="flex items-start justify-between gap-3">
+                    <dt>Çek Seri No</dt>
+                    <dd className="font-mono">{parsedMicrFields?.chequeSerialNo ?? '-'}</dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <dt>Banka Kodu</dt>
+                    <dd className="font-mono">{parsedMicrFields?.bankCode ?? '-'}</dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <dt>Şube Kodu</dt>
+                    <dd className="font-mono">{parsedMicrFields?.branchCode ?? '-'}</dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <dt>Hesap No</dt>
+                    <dd className="break-all font-mono">{parsedMicrFields?.accountNumber ?? '-'}</dd>
+                  </div>
+                </dl>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">QR</div>
                 <div className="mt-2 break-all font-mono text-sm text-slate-900 dark:text-slate-100">{result.qr_data || '-'}</div>
+                <dl className="mt-3 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+                  <div className="flex items-start justify-between gap-3">
+                    <dt>Çek Seri No</dt>
+                    <dd className="font-mono">{parsedQrFields?.chequeSerialNo ?? '-'}</dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <dt>Banka Kodu</dt>
+                    <dd className="font-mono">{parsedQrFields?.bankCode ?? '-'}</dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <dt>Şube Kodu</dt>
+                    <dd className="font-mono">{parsedQrFields?.branchCode ?? '-'}</dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <dt>Hesap No</dt>
+                    <dd className="break-all font-mono">{parsedQrFields?.accountNumber ?? '-'}</dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <dt>TCKN/VKN</dt>
+                    <dd className="font-mono">{parsedQrFields?.identityNumber ?? '-'}</dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <dt>Mersis No</dt>
+                    <dd className="break-all font-mono">{parsedQrFields?.mersisNumber ?? '-'}</dd>
+                  </div>
+                </dl>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">

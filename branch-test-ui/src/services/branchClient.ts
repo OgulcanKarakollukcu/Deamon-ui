@@ -2,6 +2,7 @@ import type {
   BordroScanMetadata,
   CleanupReservationsResponse,
   ChequeImageDebugResult,
+  DotsMocrChequeAnalysisResult,
   ChequeMetadata,
   CreateBordroRequest,
   DocumentScanMetadata,
@@ -48,6 +49,7 @@ const RESET_SCANNER_PATH = '/daemon.management.ManagementService/ResetScanner'
 const CLEANUP_RESERVATIONS_PATH = '/daemon.management.ManagementService/CleanupReservations'
 const CREATE_BORDRO_PATH = '/daemon.cheque.ChequeService/CreateBordro'
 const ANALYZE_CHEQUE_IMAGE_PATH = '/daemon.cheque.ChequeService/AnalyzeChequeImage'
+const ANALYZE_CHEQUE_WITH_DOTS_MOCR_PATH = '/daemon.cheque.ChequeService/AnalyzeChequeWithDotsMocr'
 const SCAN_CHEQUE_PATH = '/daemon.cheque.ChequeService/ScanCheque'
 const SCAN_BORDRO_PATH = '/daemon.cheque.ChequeService/ScanBordro'
 const SCAN_SERVICE_SCAN_BORDRO_PATH = '/daemon.scan.ScanService/ScanBordro'
@@ -97,6 +99,15 @@ type ProtoChequeImageDebugResult = {
   micr_ms: number
   qr_ms: number
   total_ms: number
+}
+
+type ProtoDotsMocrChequeAnalysisResult = {
+  object_path: string
+  front_image_path: string
+  model: string
+  prompt_mode: string
+  content: string
+  raw_response_json: string
 }
 
 type PcDaemonStatus = 'available' | 'reserved' | 'unavailable'
@@ -1189,6 +1200,54 @@ function parseAnalyzeChequeImageResponse(payload: Uint8Array): ProtoChequeImageD
   return result
 }
 
+function parseAnalyzeChequeWithDotsMocrResponse(
+  payload: Uint8Array,
+): ProtoDotsMocrChequeAnalysisResult {
+  let offset = 0
+  const result: ProtoDotsMocrChequeAnalysisResult = {
+    object_path: '',
+    front_image_path: '',
+    model: '',
+    prompt_mode: '',
+    content: '',
+    raw_response_json: '',
+  }
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      const decoded = decodeUtf8(value.value)
+
+      if (fieldNumber === 1) {
+        result.object_path = decoded
+      } else if (fieldNumber === 2) {
+        result.front_image_path = decoded
+      } else if (fieldNumber === 3) {
+        result.model = decoded
+      } else if (fieldNumber === 4) {
+        result.prompt_mode = decoded
+      } else if (fieldNumber === 5) {
+        result.content = decoded
+      } else if (fieldNumber === 6) {
+        result.raw_response_json = decoded
+      }
+
+      offset = value.offset
+      continue
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  return result
+}
+
 function parseScanBordroProgress(payload: Uint8Array): ProtoScanBordroProgress {
   let offset = 0
   let cheque: ProtoChequeMetadata | null = null
@@ -2071,6 +2130,12 @@ function encodeAnalyzeChequeImageRequest(params: {
   ])
 }
 
+function encodeAnalyzeChequeWithDotsMocrRequest(params: {
+  object_path: string
+}): Uint8Array {
+  return encodeStringField(1, params.object_path)
+}
+
 function encodeScanChequeRequest(params: {
   scanner_id: string
   session_id: string
@@ -2371,6 +2436,26 @@ export async function analyzeChequeImage(params: {
     micr_ms: result.micr_ms,
     qr_ms: result.qr_ms,
     total_ms: result.total_ms,
+  }
+}
+
+export async function analyzeChequeWithDotsMocr(params: {
+  object_path: string
+}): Promise<DotsMocrChequeAnalysisResult> {
+  const response = await callGrpcWebUnary(
+    'analyzeChequeWithDotsMocr',
+    ANALYZE_CHEQUE_WITH_DOTS_MOCR_PATH,
+    encodeAnalyzeChequeWithDotsMocrRequest(params),
+  )
+
+  const result = parseAnalyzeChequeWithDotsMocrResponse(response)
+  return {
+    object_path: result.object_path,
+    front_image_path: result.front_image_path,
+    model: result.model,
+    prompt_mode: result.prompt_mode,
+    content: result.content,
+    raw_response_json: result.raw_response_json,
   }
 }
 

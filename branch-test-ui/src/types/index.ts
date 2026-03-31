@@ -162,6 +162,15 @@ export type ChequeImageDebugResult = {
   total_ms: number
 }
 
+export type DotsMocrChequeAnalysisResult = {
+  object_path: string
+  front_image_path: string
+  model: string
+  prompt_mode: string
+  content: string
+  raw_response_json: string
+}
+
 export type ScanBordroProgress = {
   cheque: ChequeMetadata
   completed_count: number

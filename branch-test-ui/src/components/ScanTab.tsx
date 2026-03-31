@@ -2,6 +2,7 @@
 import { ImageIcon, Loader2, RefreshCcw, ScanLine } from 'lucide-react'
 import { useLogContext } from '../context/LogContext'
 import {
+  analyzeChequeWithDotsMocr,
   getStorageObject,
   listScanners,
   listStorageObjects,
@@ -10,7 +11,13 @@ import {
   resolveStorageObjectPaths,
   scanBordroStream,
 } from '../services/branchClient'
-import type { ChequeMetadata, ScanColorMode, ScanPageSize, Scanner } from '../types'
+import type {
+  ChequeMetadata,
+  DotsMocrChequeAnalysisResult,
+  ScanColorMode,
+  ScanPageSize,
+  Scanner,
+} from '../types'
 
 export type ScanTabProps = {
   activeBordroId: string | null
@@ -69,6 +76,47 @@ type ChequeStorageState = {
   metadata: ParsedChequeStorageMetadata | null
 }
 
+type DotsMocrAnalysisState = {
+  isLoading: boolean
+  error: string | null
+  result: DotsMocrChequeAnalysisResult | null
+}
+
+type ParsedDotsMocrFinancialFields = {
+  Bank_Name: string
+  Branch_Info: string
+  Date_of_Issue: string
+  Place_of_Issue: string
+  Currency: string
+  Amount_Numeric: string
+  Amount_Words: string
+  Payee_Name: string
+  Drawer_Name: string
+  IBAN: string
+  Check_Number: string
+  MICR_Line: string
+  Check_Type: string
+}
+
+const DOTS_MOCR_FIELD_LABELS: Array<{
+  key: keyof ParsedDotsMocrFinancialFields
+  label: string
+}> = [
+  { key: 'Bank_Name', label: 'Banka' },
+  { key: 'Branch_Info', label: 'Şube' },
+  { key: 'Date_of_Issue', label: 'Keşide Tarihi' },
+  { key: 'Place_of_Issue', label: 'Keşide Yeri' },
+  { key: 'Currency', label: 'Para Birimi' },
+  { key: 'Amount_Numeric', label: 'Tutar (Sayısal)' },
+  { key: 'Amount_Words', label: 'Yalnız' },
+  { key: 'Payee_Name', label: 'Emrine' },
+  { key: 'Drawer_Name', label: 'Keşideci' },
+  { key: 'IBAN', label: 'IBAN' },
+  { key: 'Check_Number', label: 'Çek No' },
+  { key: 'MICR_Line', label: 'MICR' },
+  { key: 'Check_Type', label: 'Çek Tipi' },
+]
+
 function createInitialChequeStorageState(): ChequeStorageState {
   return {
     isLoading: false,
@@ -84,6 +132,78 @@ function createInitialChequeStorageState(): ChequeStorageState {
     metadataPath: null,
     metadataJson: null,
     metadata: null,
+  }
+}
+
+function createInitialDotsMocrAnalysisState(): DotsMocrAnalysisState {
+  return {
+    isLoading: false,
+    error: null,
+    result: null,
+  }
+}
+
+function createEmptyDotsMocrFinancialFields(): ParsedDotsMocrFinancialFields {
+  return {
+    Bank_Name: 'null',
+    Branch_Info: 'null',
+    Date_of_Issue: 'null',
+    Place_of_Issue: 'null',
+    Currency: 'null',
+    Amount_Numeric: 'null',
+    Amount_Words: 'null',
+    Payee_Name: 'null',
+    Drawer_Name: 'null',
+    IBAN: 'null',
+    Check_Number: 'null',
+    MICR_Line: 'null',
+    Check_Type: 'null',
+  }
+}
+
+function normalizeDotsMocrFieldValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return 'null'
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : 'null'
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+
+  return 'null'
+}
+
+function parseDotsMocrFinancialFields(
+  content: string,
+): ParsedDotsMocrFinancialFields | null {
+  const trimmed = content.trim()
+  if (trimmed.length === 0) {
+    return null
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(trimmed)
+    const candidate =
+      Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : parsed
+
+    if (!candidate || typeof candidate !== 'object') {
+      return null
+    }
+
+    const record = candidate as Record<string, unknown>
+    const fields = createEmptyDotsMocrFinancialFields()
+    for (const { key } of DOTS_MOCR_FIELD_LABELS) {
+      fields[key] = normalizeDotsMocrFieldValue(record[key])
+    }
+
+    return fields
+  } catch {
+    return null
   }
 }
 
@@ -436,6 +556,10 @@ export default function ScanTab({
   const [chequeStorageDetails, setChequeStorageDetails] = useState<Record<string, ChequeStorageState>>(
     {},
   )
+  const [dotsMocrAnalyses, setDotsMocrAnalyses] = useState<Record<string, DotsMocrAnalysisState>>(
+    {},
+  )
+  const [isAnalyzingDotsMocrBatch, setIsAnalyzingDotsMocrBatch] = useState<boolean>(false)
   const chequeStorageDetailsRef = useRef<Record<string, ChequeStorageState>>({})
 
   const activeScanner = useMemo(() => {
@@ -461,6 +585,15 @@ export default function ScanTab({
   }, [selectedChequeKey, sortedScannedCheques])
   const selectedChequeStorageDetails =
     selectedCheque ? chequeStorageDetails[getChequeResultKey(selectedCheque)] ?? null : null
+  const selectedChequeDotsMocrAnalysis =
+    selectedCheque ? dotsMocrAnalyses[getChequeResultKey(selectedCheque)] ?? null : null
+  const selectedChequeDotsMocrFields = useMemo(
+    () =>
+      selectedChequeDotsMocrAnalysis?.result
+        ? parseDotsMocrFinancialFields(selectedChequeDotsMocrAnalysis.result.content)
+        : null,
+    [selectedChequeDotsMocrAnalysis],
+  )
   const effectiveExpectedChequeCount = scanTotalCount > 0 ? scanTotalCount : expectedChequeCount ?? 0
   const progressPercent = effectiveExpectedChequeCount > 0
     ? Math.min(100, Math.round((sortedScannedCheques.length / effectiveExpectedChequeCount) * 100))
@@ -580,6 +713,19 @@ export default function ScanTab({
       return {}
     })
   }, [])
+
+  const updateDotsMocrAnalysisState = useCallback(
+    (
+      chequeKey: string,
+      updater: (previous: DotsMocrAnalysisState | undefined) => DotsMocrAnalysisState,
+    ): void => {
+      setDotsMocrAnalyses((previousAnalyses) => ({
+        ...previousAnalyses,
+        [chequeKey]: updater(previousAnalyses[chequeKey]),
+      }))
+    },
+    [],
+  )
 
   const loadChequeStorageDetails = useCallback(
     async (cheque: ChequeMetadata, forceReload = false): Promise<void> => {
@@ -731,6 +877,73 @@ export default function ScanTab({
     },
     [addLog, chequeStorageDetails, updateChequeStorageState],
   )
+
+  const runDotsMocrAnalysisForCheque = useCallback(
+    async (cheque: ChequeMetadata): Promise<void> => {
+      const chequeKey = getChequeResultKey(cheque)
+
+      if (!cheque.object_path.trim()) {
+        updateDotsMocrAnalysisState(chequeKey, (previous) => ({
+          ...(previous ?? createInitialDotsMocrAnalysisState()),
+          isLoading: false,
+          error: 'Object path boş olduğu için dots.mocr analizi çalıştırılamadı.',
+        }))
+        return
+      }
+
+      updateDotsMocrAnalysisState(chequeKey, (previous) => ({
+        ...(previous ?? createInitialDotsMocrAnalysisState()),
+        isLoading: true,
+        error: null,
+      }))
+
+      try {
+        addLog(
+          'info',
+          `İstek: analyzeChequeWithDotsMocr {object_path:${cheque.object_path}}`,
+        )
+        const result = await analyzeChequeWithDotsMocr({
+          object_path: cheque.object_path,
+        })
+        updateDotsMocrAnalysisState(chequeKey, () => ({
+          isLoading: false,
+          error: null,
+          result,
+        }))
+        addLog(
+          'info',
+          `Yanıt: analyzeChequeWithDotsMocr cheque_no=${cheque.cheque_no.toString()} model=${result.model || '-'} content_len=${result.content.length.toString()}`,
+        )
+      } catch (analysisError) {
+        const message = getErrorMessage(analysisError)
+        updateDotsMocrAnalysisState(chequeKey, (previous) => ({
+          ...(previous ?? createInitialDotsMocrAnalysisState()),
+          isLoading: false,
+          error: message,
+        }))
+        addLog(
+          'error',
+          `Hata: analyzeChequeWithDotsMocr cheque_no=${cheque.cheque_no.toString()} ${message}`,
+        )
+      }
+    },
+    [addLog, updateDotsMocrAnalysisState],
+  )
+
+  const analyzeAllScannedChequesWithDotsMocr = useCallback(async (): Promise<void> => {
+    if (sortedScannedCheques.length === 0 || isAnalyzingDotsMocrBatch) {
+      return
+    }
+
+    setIsAnalyzingDotsMocrBatch(true)
+    try {
+      for (const cheque of sortedScannedCheques) {
+        await runDotsMocrAnalysisForCheque(cheque)
+      }
+    } finally {
+      setIsAnalyzingDotsMocrBatch(false)
+    }
+  }, [isAnalyzingDotsMocrBatch, runDotsMocrAnalysisForCheque, sortedScannedCheques])
 
   useEffect(() => {
     for (const cheque of scannedCheques) {
@@ -1443,6 +1656,51 @@ export default function ScanTab({
                   Önizleme asset'leri hazırlanıyor…
                 </div>
               ) : null}
+              {selectedChequeDotsMocrAnalysis?.isLoading ? (
+                <div className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-700 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300">
+                  dots.mocr analizi çalışıyor…
+                </div>
+              ) : null}
+              {selectedChequeDotsMocrAnalysis?.error ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                  dots.mocr hatası: {selectedChequeDotsMocrAnalysis.error}
+                </div>
+              ) : null}
+              {selectedChequeDotsMocrAnalysis?.result ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                      dots.mocr
+                    </p>
+                    <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                      {selectedChequeDotsMocrAnalysis.result.model || '-'}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                    Prompt: {selectedChequeDotsMocrAnalysis.result.prompt_mode || '-'}
+                  </p>
+                  {selectedChequeDotsMocrFields ? (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {DOTS_MOCR_FIELD_LABELS.map(({ key, label }) => (
+                        <div
+                          key={key}
+                          className="rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900"
+                        >
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                            {label}
+                          </p>
+                          <p className="mt-1 break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                            {selectedChequeDotsMocrFields[key]}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <pre className="mt-3 max-h-56 overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
+                    {selectedChequeDotsMocrAnalysis.result.content || '-'}
+                  </pre>
+                </div>
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -1453,9 +1711,36 @@ export default function ScanTab({
           </p>
         ) : (
           <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40">
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  dots.mocr Sonradan Analiz
+                </p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  Taranmış çeklerin front image&apos;ı storage üstünden okunur ve vLLM&apos;ye gönderilir.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={sortedScannedCheques.length === 0 || isAnalyzingDotsMocrBatch}
+                onClick={() => {
+                  void analyzeAllScannedChequesWithDotsMocr()
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <ScanLine className={`h-4 w-4 ${isAnalyzingDotsMocrBatch ? 'animate-pulse' : ''}`} />
+                {isAnalyzingDotsMocrBatch
+                  ? 'dots.mocr Analizi Çalışıyor…'
+                  : 'Taranan Çekleri dots.mocr ile Analiz Et'}
+              </button>
+            </div>
             {sortedScannedCheques.map((cheque) => {
               const chequeKey = getChequeResultKey(cheque)
               const storageDetails = chequeStorageDetails[chequeKey]
+              const dotsMocrAnalysis = dotsMocrAnalyses[chequeKey]
+              const dotsMocrFields = dotsMocrAnalysis?.result
+                ? parseDotsMocrFinancialFields(dotsMocrAnalysis.result.content)
+                : null
               const isDetailsLoading = storageDetails?.isLoading ?? true
               const metadata = storageDetails?.metadata
               const micrData = firstNonEmpty(cheque.micr_data, metadata?.micr_data, cheque.micr) ?? '-'
@@ -1556,6 +1841,16 @@ export default function ScanTab({
                         className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
                         {isDetailsLoading ? 'Yenileniyor…' : 'Yolları Yenile'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={dotsMocrAnalysis?.isLoading === true}
+                        onClick={() => {
+                          void runDotsMocrAnalysisForCheque(cheque)
+                        }}
+                        className="rounded-md border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs font-medium text-cyan-800 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300 dark:hover:bg-cyan-500/20"
+                      >
+                        {dotsMocrAnalysis?.isLoading ? 'dots.mocr…' : 'dots.mocr Analiz'}
                       </button>
                     </div>
                   </div>
@@ -1688,6 +1983,46 @@ export default function ScanTab({
                       ) : null}
                       <pre className="mt-2 max-h-56 overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
                         {storageDetails.metadataJson}
+                      </pre>
+                    </details>
+                  ) : null}
+                  {dotsMocrAnalysis?.error ? (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                      dots.mocr hatası: {dotsMocrAnalysis.error}
+                    </div>
+                  ) : null}
+                  {dotsMocrAnalysis?.result ? (
+                    <details className="rounded-md border border-cyan-200 bg-cyan-50 p-3 dark:border-cyan-500/30 dark:bg-cyan-500/10">
+                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-cyan-800 dark:text-cyan-300">
+                        dots.mocr sonucu
+                      </summary>
+                      <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                        <span className="rounded-full border border-cyan-200 bg-white px-2 py-1 dark:border-cyan-500/30 dark:bg-slate-950/70">
+                          model: {dotsMocrAnalysis.result.model || '-'}
+                        </span>
+                        <span className="rounded-full border border-cyan-200 bg-white px-2 py-1 dark:border-cyan-500/30 dark:bg-slate-950/70">
+                          prompt: {dotsMocrAnalysis.result.prompt_mode || '-'}
+                        </span>
+                      </div>
+                      {dotsMocrFields ? (
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                          {DOTS_MOCR_FIELD_LABELS.map(({ key, label }) => (
+                            <div
+                              key={key}
+                              className="rounded-md border border-cyan-200 bg-white p-2 dark:border-cyan-500/30 dark:bg-slate-950/70"
+                            >
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                                {label}
+                              </p>
+                              <p className="mt-1 break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                                {dotsMocrFields[key]}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      <pre className="mt-3 max-h-64 overflow-auto rounded-md border border-cyan-200 bg-white p-2 text-[11px] text-slate-700 dark:border-cyan-500/30 dark:bg-slate-950 dark:text-slate-300">
+                        {dotsMocrAnalysis.result.content || '-'}
                       </pre>
                     </details>
                   ) : null}

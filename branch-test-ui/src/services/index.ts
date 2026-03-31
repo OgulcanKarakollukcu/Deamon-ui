@@ -1,5 +1,6 @@
 export {
   analyzeChequeImage,
+  analyzeChequeWithDotsMocr,
   chequeHealth,
   cleanupReservations,
   createBordro,
