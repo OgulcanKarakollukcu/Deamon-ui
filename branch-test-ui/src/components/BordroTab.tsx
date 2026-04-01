@@ -1,7 +1,8 @@
-import { FileText, Folder } from 'lucide-react'
+import { FileText, Folder, ScanLine } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { useLogContext } from '../context/LogContext'
 import {
+  analyzeChequeWithDotsMocr,
   createBordro,
   getStorageObject,
   releaseScanner,
@@ -11,8 +12,10 @@ import type {
   BordroCurrency,
   ChequeMetadata,
   CreateBordroRequest,
+  DotsMocrChequeAnalysisResult,
   SessionBordroEntry,
 } from '../types'
+import { parseDotsMocrDisplayFields } from '../utils/dotsMocrFields'
 import { normalizeMicrValue, parseMicrFieldsWithQrHint, parseQrFields } from '../utils/chequeFields'
 import { type ScanReservationState, type ScanSettings } from './ScanTab'
 import UnifiedScanTab from './UnifiedScanTab'
@@ -51,6 +54,12 @@ type ViewerState = {
   error: string | null
 }
 
+type DotsMocrAnalysisState = {
+  isLoading: boolean
+  error: string | null
+  result: DotsMocrChequeAnalysisResult | null
+}
+
 const CHEQUE_TYPE_OPTIONS: Array<{ value: BordroChequeType; label: string }> = [
   { value: 'BL', label: 'BL' },
   { value: 'BV', label: 'BV' },
@@ -81,6 +90,14 @@ const INITIAL_VIEWER_STATE: ViewerState = {
   imageHeight: null,
   renderFailed: false,
   error: null,
+}
+
+function createInitialDotsMocrAnalysisState(): DotsMocrAnalysisState {
+  return {
+    isLoading: false,
+    error: null,
+    result: null,
+  }
 }
 
 function shortenId(value: string): string {
@@ -249,6 +266,7 @@ export default function BordroTab({
   )
   const [scannedChequesByBordro, setScannedChequesByBordro] = useState<Record<string, ChequeMetadata[]>>({})
   const [scanSettingsByBordro, setScanSettingsByBordro] = useState<Record<string, ScanSettings>>({})
+  const [dotsMocrAnalyses, setDotsMocrAnalyses] = useState<Record<string, DotsMocrAnalysisState>>({})
   const [selectedPage, setSelectedPage] = useState<SelectedPageState | null>(null)
   const [viewer, setViewer] = useState<ViewerState>(INITIAL_VIEWER_STATE)
 
@@ -290,6 +308,9 @@ export default function BordroTab({
 
     return activeScannedCheques.find((cheque) => cheque.object_path === selectedPage.objectPath) ?? null
   }, [activeScannedCheques, selectedPage])
+  const selectedChequeKey = selectedCheque ? buildChequeKey(selectedCheque) : null
+  const selectedChequeDotsMocrAnalysis =
+    selectedChequeKey ? dotsMocrAnalyses[selectedChequeKey] ?? null : null
 
   const updateViewer = useCallback(
     (updater: ViewerState | ((previous: ViewerState) => ViewerState)) => {
@@ -300,6 +321,15 @@ export default function BordroTab({
         }
         return next
       })
+    },
+    [],
+  )
+  const updateDotsMocrAnalysisState = useCallback(
+    (chequeKey: string, updater: (previous: DotsMocrAnalysisState | undefined) => DotsMocrAnalysisState) => {
+      setDotsMocrAnalyses((previousAnalyses) => ({
+        ...previousAnalyses,
+        [chequeKey]: updater(previousAnalyses[chequeKey]),
+      }))
     },
     [],
   )
@@ -426,6 +456,50 @@ export default function BordroTab({
       addLog('error', `Hata: selectedImage ${message}`)
     }
   }, [addLog, form.showCheque, selectedCheque, selectedPage, updateViewer])
+
+  const runDotsMocrAnalysisForSelectedCheque = useCallback(async (): Promise<void> => {
+    if (!selectedCheque) {
+      setError('dots.mocr analizi icin once bir cek secin.')
+      return
+    }
+
+    if (!selectedCheque.object_path.trim()) {
+      setError('Object path bos oldugu icin dots.mocr analizi calistirilamadi.')
+      return
+    }
+
+    const chequeKey = buildChequeKey(selectedCheque)
+    setError(null)
+    updateDotsMocrAnalysisState(chequeKey, (previous) => ({
+      ...(previous ?? createInitialDotsMocrAnalysisState()),
+      isLoading: true,
+      error: null,
+    }))
+
+    try {
+      addLog('info', `Istek: analyzeChequeWithDotsMocr {object_path:${selectedCheque.object_path}}`)
+      const result = await analyzeChequeWithDotsMocr({
+        object_path: selectedCheque.object_path,
+      })
+      updateDotsMocrAnalysisState(chequeKey, () => ({
+        isLoading: false,
+        error: null,
+        result,
+      }))
+      addLog(
+        'info',
+        `Yanit: analyzeChequeWithDotsMocr cheque_no=${selectedCheque.cheque_no.toString()} model=${result.model || '-'}`,
+      )
+    } catch (analysisError) {
+      const message = getErrorMessage(analysisError)
+      updateDotsMocrAnalysisState(chequeKey, (previous) => ({
+        ...(previous ?? createInitialDotsMocrAnalysisState()),
+        isLoading: false,
+        error: message,
+      }))
+      addLog('error', `Hata: analyzeChequeWithDotsMocr cheque_no=${selectedCheque.cheque_no.toString()} ${message}`)
+    }
+  }, [addLog, selectedCheque, updateDotsMocrAnalysisState])
 
   useEffect(() => {
     void loadSelectedImage()
@@ -679,10 +753,30 @@ export default function BordroTab({
       )
     : normalizeMicrValue(selectedRawMicr)
   const selectedQrFields = parseQrFields(selectedQr)
+  const selectedChequeDotsMocrDisplayFields = useMemo(
+    () =>
+      selectedChequeDotsMocrAnalysis?.result
+        ? parseDotsMocrDisplayFields(
+            selectedChequeDotsMocrAnalysis.result.content,
+            selectedChequeDotsMocrAnalysis.result.raw_response_json,
+          )
+        : null,
+    [selectedChequeDotsMocrAnalysis],
+  )
+  const shouldRotatePreview =
+    selectedPage?.side === 'back' &&
+    viewer.imageWidth !== null &&
+    viewer.imageHeight !== null &&
+    viewer.imageHeight > viewer.imageWidth
+  const previewFrameClassName = shouldRotatePreview
+    ? 'h-auto w-[88%] max-w-none rotate-90 object-contain'
+    : 'h-full w-full object-contain'
 
   return (
-    <div className="h-full min-h-0 space-y-4">
-      <div className="grid h-full min-h-0 grid-cols-[minmax(360px,35%)_minmax(0,65%)] gap-4">
+    <div className="h-full min-h-0">
+      {!isScanModalOpen ? (
+        <div className="space-y-4">
+          <div className="grid h-full min-h-0 grid-cols-[minmax(360px,35%)_minmax(0,65%)] gap-4">
         <section className="flex min-h-0 flex-col gap-4">
           <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -862,7 +956,7 @@ export default function BordroTab({
           </article>
 
           <article className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900/40">
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -876,21 +970,17 @@ export default function BordroTab({
                 }}
                 className="rounded-md bg-cyan-600 px-3 py-2 text-xs font-semibold text-white hover:bg-cyan-500"
               >
-                TARA
+                TARAMAYA GEC
               </button>
 
               <button
                 type="button"
                 onClick={() => {
-                  if (isScanModalOpen) {
-                    void handleCloseScanModal()
-                    return
-                  }
                   setSelectedPage(null)
                 }}
                 className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
-                KAPAT
+                SECIMI TEMIZLE
               </button>
 
               <button
@@ -975,12 +1065,12 @@ export default function BordroTab({
           </article>
         </section>
 
-        <section className="min-h-0 rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40">
-          <div className="flex h-full min-h-0 flex-col">
-            <div className="min-h-0 flex-1 p-4">
+        <section className="min-h-0 space-y-3">
+          <div className="space-y-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Çek Görüntüsü</h3>
 
-              <div className="mt-3 flex h-[calc(100%-1.75rem)] items-center justify-center rounded-lg border border-slate-200 bg-slate-100 p-4 dark:border-slate-700 dark:bg-slate-900">
+              <div className="mt-3 flex min-h-[260px] items-center justify-center rounded-xl bg-slate-100 p-3 md:min-h-[320px] dark:bg-slate-900">
                 {selectedCheque === null || selectedPage === null ? (
                   <p className="text-sm text-slate-500 dark:text-slate-400">Görüntülenecek çek seçin</p>
                 ) : !form.showCheque ? (
@@ -988,7 +1078,7 @@ export default function BordroTab({
                     Çeki Göster kapalı. Görüntü gizlendi.
                   </p>
                 ) : viewer.isLoading ? (
-                  <div className="h-56 w-full animate-pulse rounded-md bg-slate-200 dark:bg-slate-800" />
+                  <div className="aspect-[2.35/1] w-full max-w-5xl animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
                 ) : viewer.error ? (
                   <div className="space-y-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-rose-600/50 dark:bg-rose-500/10 dark:text-rose-300">
                     <p>{viewer.error}</p>
@@ -1003,14 +1093,16 @@ export default function BordroTab({
                     </button>
                   </div>
                 ) : viewer.objectUrl && isRenderableImageMimeType(viewer.mimeType) && !viewer.renderFailed ? (
-                  <img
-                    src={viewer.objectUrl}
-                    alt={`Cheque ${selectedCheque.cheque_no.toString()} ${selectedPage.side}`}
-                    onError={() => {
-                      updateViewer((previous) => ({ ...previous, renderFailed: true }))
-                    }}
-                    className="h-full w-full rounded-md border border-slate-300 bg-white object-contain dark:border-slate-700 dark:bg-slate-950"
-                  />
+                  <div className="flex aspect-[2.35/1] w-full max-w-5xl items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-white p-1.5 dark:border-slate-700 dark:bg-slate-950">
+                    <img
+                      src={viewer.objectUrl}
+                      alt={`Cheque ${selectedCheque.cheque_no.toString()} ${selectedPage.side}`}
+                      onError={() => {
+                        updateViewer((previous) => ({ ...previous, renderFailed: true }))
+                      }}
+                      className={`${previewFrameClassName} transition-transform duration-200`}
+                    />
+                  </div>
                 ) : viewer.objectUrl ? (
                   <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
                     <p>
@@ -1037,7 +1129,74 @@ export default function BordroTab({
               </div>
             </div>
 
-            <div className="border-t border-slate-200 px-4 py-3 dark:border-slate-800">
+            <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-900/30">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                  OCR ve Alanlar
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void runDotsMocrAnalysisForSelectedCheque()
+                  }}
+                  disabled={selectedCheque === null || selectedChequeDotsMocrAnalysis?.isLoading === true}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  <ScanLine className={`h-3.5 w-3.5 ${selectedChequeDotsMocrAnalysis?.isLoading ? 'animate-pulse' : ''}`} />
+                  {selectedChequeDotsMocrAnalysis?.isLoading ? 'dots.mocr...' : 'dots.mocr Analiz'}
+                </button>
+              </div>
+
+              {selectedChequeDotsMocrAnalysis?.error ? (
+                <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                  dots.mocr hatasi: {selectedChequeDotsMocrAnalysis.error}
+                </div>
+              ) : null}
+
+              {selectedChequeDotsMocrAnalysis?.result ? (
+                <div className="mb-3 rounded-xl bg-white/80 p-3 dark:bg-slate-950/40">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                      dots.mocr Sonucu
+                    </p>
+                    <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                      {selectedChequeDotsMocrAnalysis?.result?.model || '-'}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                    Prompt: {selectedChequeDotsMocrAnalysis.result.prompt_mode || '-'}
+                  </p>
+                  {selectedChequeDotsMocrDisplayFields ? (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {selectedChequeDotsMocrDisplayFields.map((field) => (
+                        <div key={field.keyPath || field.label} className="rounded-lg bg-slate-50 p-2 dark:bg-slate-900/70">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                            {field.label}
+                          </p>
+                          <p className="mt-1 break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                            {field.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                      Sonuc geldi ama JSON parse edilemedi. Ham yaniti asagidaki bolumden acabilirsiniz.
+                    </p>
+                  )}
+                  <details className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950">
+                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300">
+                      Ham JSON
+                    </summary>
+                    <pre className="mt-2 max-h-56 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                      {selectedChequeDotsMocrAnalysis.result.raw_response_json ||
+                        selectedChequeDotsMocrAnalysis.result.content ||
+                        '-'}
+                    </pre>
+                  </details>
+                </div>
+              ) : null}
+
               {viewerInfo.length > 0 ? (
                 <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
                   Görsel: {viewerInfo.join(' | ')}
@@ -1062,7 +1221,7 @@ export default function BordroTab({
                 </p>
               </div>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                <div className="rounded-lg bg-white/80 p-3 dark:bg-slate-950/40">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     MICR Alanlari
                   </p>
@@ -1087,7 +1246,7 @@ export default function BordroTab({
                     </div>
                   </dl>
                 </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                <div className="rounded-lg bg-white/80 p-3 dark:bg-slate-950/40">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     QR Alanlari
                   </p>
@@ -1133,15 +1292,20 @@ export default function BordroTab({
           {error}
         </p>
       ) : null}
+        </div>
+      ) : null}
 
       {isScanModalOpen ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/55 p-4 backdrop-blur-sm">
-          <div className="mx-auto flex min-h-full w-full max-w-6xl items-center justify-center">
-            <div className="flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800 md:px-6">
+        <div className="h-full min-h-0">
+          <div className="flex h-full min-h-0 w-full flex-col">
+            <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-gradient-to-r from-white via-cyan-50/80 to-slate-50 px-4 py-4 dark:border-slate-800 dark:from-slate-950 dark:via-cyan-500/5 dark:to-slate-950 md:px-6">
                 <div>
-                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                    Bordro Tarama
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
+                    Tarama Alani
+                  </p>
+                  <h3 className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-100">
+                    Bordro tarama artik tam sayfa
                   </h3>
                   {currentScanBordroId ? (
                     <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
@@ -1161,7 +1325,7 @@ export default function BordroTab({
                     void handleCloseScanModal()
                   }}
                   disabled={isClosingModal}
-                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   {isClosingModal ? 'Bırakılıyor…' : 'Kapat'}
                 </button>
@@ -1183,6 +1347,7 @@ export default function BordroTab({
                   onScanSettingsChange={handleScanSettingsChange}
                   onReservationStateChange={setScanReservationState}
                   defaultMode="CHEQUE"
+                  showModeSelector={false}
                 />
               </div>
             </div>

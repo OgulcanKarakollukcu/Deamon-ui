@@ -126,7 +126,7 @@ function App() {
                   }`}
                   aria-hidden="true"
                 />
-                <span>Branch Daemon&apos;a baÄŸlanÄ±lamÄ±yor â€” yeniden deneniyorâ€¦</span>
+                <span>Branch Daemon&apos;a bağlanılamıyor, yeniden deneniyor...</span>
               </div>
             </div>
           )

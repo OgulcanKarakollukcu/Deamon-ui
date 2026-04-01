@@ -18,6 +18,7 @@ import type {
   ScanPageSize,
   Scanner,
 } from '../types'
+import { parseDotsMocrDisplayFields } from '../utils/dotsMocrFields'
 
 export type ScanTabProps = {
   activeBordroId: string | null
@@ -82,41 +83,6 @@ type DotsMocrAnalysisState = {
   result: DotsMocrChequeAnalysisResult | null
 }
 
-type ParsedDotsMocrFinancialFields = {
-  Bank_Name: string
-  Branch_Info: string
-  Date_of_Issue: string
-  Place_of_Issue: string
-  Currency: string
-  Amount_Numeric: string
-  Amount_Words: string
-  Payee_Name: string
-  Drawer_Name: string
-  IBAN: string
-  Check_Number: string
-  MICR_Line: string
-  Check_Type: string
-}
-
-const DOTS_MOCR_FIELD_LABELS: Array<{
-  key: keyof ParsedDotsMocrFinancialFields
-  label: string
-}> = [
-  { key: 'Bank_Name', label: 'Banka' },
-  { key: 'Branch_Info', label: 'Şube' },
-  { key: 'Date_of_Issue', label: 'Keşide Tarihi' },
-  { key: 'Place_of_Issue', label: 'Keşide Yeri' },
-  { key: 'Currency', label: 'Para Birimi' },
-  { key: 'Amount_Numeric', label: 'Tutar (Sayısal)' },
-  { key: 'Amount_Words', label: 'Yalnız' },
-  { key: 'Payee_Name', label: 'Emrine' },
-  { key: 'Drawer_Name', label: 'Keşideci' },
-  { key: 'IBAN', label: 'IBAN' },
-  { key: 'Check_Number', label: 'Çek No' },
-  { key: 'MICR_Line', label: 'MICR' },
-  { key: 'Check_Type', label: 'Çek Tipi' },
-]
-
 function createInitialChequeStorageState(): ChequeStorageState {
   return {
     isLoading: false,
@@ -140,70 +106,6 @@ function createInitialDotsMocrAnalysisState(): DotsMocrAnalysisState {
     isLoading: false,
     error: null,
     result: null,
-  }
-}
-
-function createEmptyDotsMocrFinancialFields(): ParsedDotsMocrFinancialFields {
-  return {
-    Bank_Name: 'null',
-    Branch_Info: 'null',
-    Date_of_Issue: 'null',
-    Place_of_Issue: 'null',
-    Currency: 'null',
-    Amount_Numeric: 'null',
-    Amount_Words: 'null',
-    Payee_Name: 'null',
-    Drawer_Name: 'null',
-    IBAN: 'null',
-    Check_Number: 'null',
-    MICR_Line: 'null',
-    Check_Type: 'null',
-  }
-}
-
-function normalizeDotsMocrFieldValue(value: unknown): string {
-  if (value === null || value === undefined) {
-    return 'null'
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    return trimmed.length > 0 ? trimmed : 'null'
-  }
-
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value)
-  }
-
-  return 'null'
-}
-
-function parseDotsMocrFinancialFields(
-  content: string,
-): ParsedDotsMocrFinancialFields | null {
-  const trimmed = content.trim()
-  if (trimmed.length === 0) {
-    return null
-  }
-
-  try {
-    const parsed: unknown = JSON.parse(trimmed)
-    const candidate =
-      Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : parsed
-
-    if (!candidate || typeof candidate !== 'object') {
-      return null
-    }
-
-    const record = candidate as Record<string, unknown>
-    const fields = createEmptyDotsMocrFinancialFields()
-    for (const { key } of DOTS_MOCR_FIELD_LABELS) {
-      fields[key] = normalizeDotsMocrFieldValue(record[key])
-    }
-
-    return fields
-  } catch {
-    return null
   }
 }
 
@@ -575,24 +477,6 @@ export default function ScanTab({
   const sortedScannedCheques = useMemo(
     () => [...scannedCheques].sort((left, right) => left.cheque_no - right.cheque_no),
     [scannedCheques],
-  )
-  const selectedCheque = useMemo(() => {
-    if (selectedChequeKey === null) {
-      return null
-    }
-
-    return sortedScannedCheques.find((cheque) => getChequeResultKey(cheque) === selectedChequeKey) ?? null
-  }, [selectedChequeKey, sortedScannedCheques])
-  const selectedChequeStorageDetails =
-    selectedCheque ? chequeStorageDetails[getChequeResultKey(selectedCheque)] ?? null : null
-  const selectedChequeDotsMocrAnalysis =
-    selectedCheque ? dotsMocrAnalyses[getChequeResultKey(selectedCheque)] ?? null : null
-  const selectedChequeDotsMocrFields = useMemo(
-    () =>
-      selectedChequeDotsMocrAnalysis?.result
-        ? parseDotsMocrFinancialFields(selectedChequeDotsMocrAnalysis.result.content)
-        : null,
-    [selectedChequeDotsMocrAnalysis],
   )
   const effectiveExpectedChequeCount = scanTotalCount > 0 ? scanTotalCount : expectedChequeCount ?? 0
   const progressPercent = effectiveExpectedChequeCount > 0
@@ -1536,175 +1420,6 @@ export default function ScanTab({
           </div>
         ) : null}
 
-        {selectedCheque ? (
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.9fr)]">
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                    Aktif Önizleme
-                  </p>
-                  <h4 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
-                    Çek {selectedCheque.cheque_no.toString()}
-                  </h4>
-                </div>
-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                  <ImageIcon className="h-3.5 w-3.5" />
-                  Rahat İnceleme
-                </span>
-              </div>
-              <div className="grid gap-4 p-4 lg:grid-cols-2">
-                {[
-                  {
-                    key: 'front',
-                    label: 'Ön Yüz',
-                    previewUrl: selectedChequeStorageDetails?.frontPreviewUrl ?? null,
-                    sizeLabel: selectedChequeStorageDetails?.frontImageSizeLabel ?? null,
-                    dimensionsLabel: formatDimensionsLabel(selectedChequeStorageDetails?.frontImageDimensions ?? null),
-                    path: firstNonEmpty(selectedCheque.front_image_path, selectedChequeStorageDetails?.frontImagePath),
-                    emptyLabel: 'Ön yüz yükleniyor…',
-                  },
-                  {
-                    key: 'back',
-                    label: 'Arka Yüz',
-                    previewUrl: selectedChequeStorageDetails?.backPreviewUrl ?? null,
-                    sizeLabel: selectedChequeStorageDetails?.backImageSizeLabel ?? null,
-                    dimensionsLabel: formatDimensionsLabel(selectedChequeStorageDetails?.backImageDimensions ?? null),
-                    path: firstNonEmpty(selectedCheque.back_image_path, selectedChequeStorageDetails?.backImagePath),
-                    emptyLabel: selectedCheque.page_count > 1 ? 'Arka yüz yükleniyor…' : 'Arka yüz yok',
-                  },
-                ].map((preview) => (
-                  <div
-                    key={preview.key}
-                    className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        {preview.label}
-                      </p>
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {preview.dimensionsLabel ?? preview.sizeLabel ?? 'Hazırlanıyor'}
-                      </span>
-                    </div>
-                    <div className="flex min-h-[260px] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-                      {preview.previewUrl ? (
-                        <img
-                          src={preview.previewUrl}
-                          alt={`${preview.label} - Çek ${selectedCheque.cheque_no.toString()}`}
-                          className="max-h-[420px] w-full rounded-lg object-contain"
-                        />
-                      ) : (
-                        <div className="space-y-2 text-center">
-                          <ImageIcon className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-700" />
-                          <p className="text-sm text-slate-500 dark:text-slate-400">{preview.emptyLabel}</p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                      <span className="rounded-full border border-slate-200 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-900">
-                        Boyut: {preview.sizeLabel ?? '-'}
-                      </span>
-                      <span className="rounded-full border border-slate-200 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-900">
-                        Ölçü: {preview.dimensionsLabel ?? '-'}
-                      </span>
-                    </div>
-                    <p className="break-all font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                      {preview.path ?? '-'}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                  İnceleme Özeti
-                </p>
-                <h4 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
-                  Çek {selectedCheque.cheque_no.toString()} detayları
-                </h4>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                    MICR
-                  </p>
-                  <p className="mt-2 break-all font-mono text-xs text-slate-700 dark:text-slate-300">
-                    {firstNonEmpty(selectedCheque.micr_data, selectedCheque.micr) ?? '-'}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                    QR
-                  </p>
-                  <p className="mt-2 break-all font-mono text-xs text-slate-700 dark:text-slate-300">
-                    {firstNonEmpty(selectedCheque.qr_data, selectedCheque.qr) ?? '-'}
-                  </p>
-                </div>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                  Storage
-                </p>
-                <p className="mt-2 break-all font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                  {selectedCheque.object_path || '-'}
-                </p>
-              </div>
-              {selectedChequeStorageDetails?.isLoading ? (
-                <div className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-700 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300">
-                  Önizleme asset'leri hazırlanıyor…
-                </div>
-              ) : null}
-              {selectedChequeDotsMocrAnalysis?.isLoading ? (
-                <div className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-700 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300">
-                  dots.mocr analizi çalışıyor…
-                </div>
-              ) : null}
-              {selectedChequeDotsMocrAnalysis?.error ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
-                  dots.mocr hatası: {selectedChequeDotsMocrAnalysis.error}
-                </div>
-              ) : null}
-              {selectedChequeDotsMocrAnalysis?.result ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                      dots.mocr
-                    </p>
-                    <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                      {selectedChequeDotsMocrAnalysis.result.model || '-'}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-                    Prompt: {selectedChequeDotsMocrAnalysis.result.prompt_mode || '-'}
-                  </p>
-                  {selectedChequeDotsMocrFields ? (
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      {DOTS_MOCR_FIELD_LABELS.map(({ key, label }) => (
-                        <div
-                          key={key}
-                          className="rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900"
-                        >
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-                            {label}
-                          </p>
-                          <p className="mt-1 break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
-                            {selectedChequeDotsMocrFields[key]}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                  <pre className="mt-3 max-h-56 overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
-                    {selectedChequeDotsMocrAnalysis.result.content || '-'}
-                  </pre>
-                </div>
-              ) : null}
-            </div>
-          </section>
-        ) : null}
-
         {sortedScannedCheques.length === 0 && !isScanning ? (
           <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400">
             Henüz çek taranmadı.
@@ -1738,8 +1453,11 @@ export default function ScanTab({
               const chequeKey = getChequeResultKey(cheque)
               const storageDetails = chequeStorageDetails[chequeKey]
               const dotsMocrAnalysis = dotsMocrAnalyses[chequeKey]
-              const dotsMocrFields = dotsMocrAnalysis?.result
-                ? parseDotsMocrFinancialFields(dotsMocrAnalysis.result.content)
+              const dotsMocrDisplayFields = dotsMocrAnalysis?.result
+                ? parseDotsMocrDisplayFields(
+                    dotsMocrAnalysis.result.content,
+                    dotsMocrAnalysis.result.raw_response_json,
+                  )
                 : null
               const isDetailsLoading = storageDetails?.isLoading ?? true
               const metadata = storageDetails?.metadata
@@ -1749,18 +1467,13 @@ export default function ScanTab({
               const qrNotRead = qrData === 'QR_NOT_READ'
               const micrQrMatch = metadata?.micr_qr_match ?? cheque.micr_qr_match
               const validationStatus = getChequeValidationStatus(micrQrMatch)
-              const frontImagePath = firstNonEmpty(
-                cheque.front_image_path,
-                metadata?.front_image_path,
-                storageDetails?.frontImagePath,
-              )
-              const backImagePath = firstNonEmpty(
-                cheque.back_image_path,
-                metadata?.back_image_path,
-                storageDetails?.backImagePath,
-              )
               const frontImageSizeLabel = storageDetails?.frontImageSizeLabel ?? null
               const backImageSizeLabel = storageDetails?.backImageSizeLabel ?? null
+              const frontPreviewUrl = storageDetails?.frontPreviewUrl ?? null
+              const backPreviewUrl = storageDetails?.backPreviewUrl ?? null
+              const frontPreviewDimensions = formatDimensionsLabel(storageDetails?.frontImageDimensions ?? null)
+              const backPreviewDimensions = formatDimensionsLabel(storageDetails?.backImageDimensions ?? null)
+              const hasBackPreview = cheque.effective_duplex || cheque.page_count > 1
               const scanSettings = [
                 {
                   key: 'duplex',
@@ -1809,9 +1522,6 @@ export default function ScanTab({
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
                         Çek No {cheque.cheque_no}
                       </p>
-                      <p className="break-all font-mono text-xs text-slate-600 dark:text-slate-400">
-                        {cheque.object_path || '-'}
-                      </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <button
@@ -1825,7 +1535,7 @@ export default function ScanTab({
                             : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                         }`}
                       >
-                        {selectedChequeKey === chequeKey ? 'Önizleniyor' : 'Önizle'}
+                        {selectedChequeKey === chequeKey ? 'Seçili' : 'Seç'}
                       </button>
                       <span
                         className={`inline-flex rounded-full border px-2 py-1 text-xs font-medium ${validationStatus.badgeClassName}`}
@@ -1840,7 +1550,7 @@ export default function ScanTab({
                         }}
                         className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
-                        {isDetailsLoading ? 'Yenileniyor…' : 'Yolları Yenile'}
+                        {isDetailsLoading ? 'Yenileniyor…' : 'Verileri Yenile'}
                       </button>
                       <button
                         type="button"
@@ -1861,6 +1571,52 @@ export default function ScanTab({
                     </p>
                   ) : null}
 
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {[
+                      {
+                        key: 'front',
+                        label: 'Ön Yüz',
+                        previewUrl: frontPreviewUrl,
+                        sizeLabel: frontImageSizeLabel,
+                        dimensionsLabel: frontPreviewDimensions,
+                        emptyLabel: 'Ön yüz hazırlanıyor…',
+                      },
+                      {
+                        key: 'back',
+                        label: 'Arka Yüz',
+                        previewUrl: backPreviewUrl,
+                        sizeLabel: backImageSizeLabel,
+                        dimensionsLabel: backPreviewDimensions,
+                        emptyLabel: hasBackPreview ? 'Arka yüz hazırlanıyor…' : 'Arka yüz yok',
+                      },
+                    ].map((preview) => (
+                      <div key={preview.key} className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-950/40">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                            {preview.label}
+                          </p>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {preview.dimensionsLabel ?? preview.sizeLabel ?? '-'}
+                          </span>
+                        </div>
+                        <div className="flex min-h-[132px] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
+                          {preview.previewUrl ? (
+                            <img
+                              src={preview.previewUrl}
+                              alt={`${preview.label} - Çek ${cheque.cheque_no.toString()}`}
+                              className="h-full max-h-[148px] w-full rounded-lg object-contain"
+                            />
+                          ) : (
+                            <div className="space-y-1 text-center">
+                              <ImageIcon className="mx-auto h-6 w-6 text-slate-300 dark:text-slate-700" />
+                              <p className="text-xs text-slate-500 dark:text-slate-400">{preview.emptyLabel}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
                   <div className="flex flex-wrap gap-2">
                     {micrNotRead ? (
                       <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-300">
@@ -1874,7 +1630,7 @@ export default function ScanTab({
                     ) : null}
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid gap-3 md:grid-cols-2">
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
                       <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                         Doğrulama Verisi
@@ -1891,59 +1647,12 @@ export default function ScanTab({
 
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
                       <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                        Depolama Referansları
-                      </p>
-                      {isDetailsLoading ? (
-                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                          Depolama yolları yükleniyor…
-                        </p>
-                      ) : (
-                        <div className="mt-2 space-y-2">
-                          <div>
-                            <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400">front_image_path</p>
-                            <p className="break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
-                              {frontImagePath ?? '-'}
-                            </p>
-                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                              Boyut: {frontImageSizeLabel ?? '-'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400">back_image_path</p>
-                            <p className="break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
-                              {backImagePath ?? 'Arka yüz yok'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">metadata.json</p>
-                            <p className="break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
-                              {storageDetails?.metadataPath ?? '-'}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                        Tarama Özeti
+                        Tarama Uyumluluğu
                       </p>
                       <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                         Sayfa Sayısı:{' '}
                         <span className="font-semibold text-slate-700 dark:text-slate-200">
                           {cheque.page_count.toString()}
-                        </span>
-                      </p>
-                      <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-                        Ön Yüz Boyutu:{' '}
-                        <span className="font-semibold text-slate-700 dark:text-slate-200">
-                          {frontImageSizeLabel ?? '-'}
-                        </span>
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                        Arka Yüz Boyutu:{' '}
-                        <span className="font-semibold text-slate-700 dark:text-slate-200">
-                          {backImageSizeLabel ?? (backImagePath ? '-' : 'Arka yüz yok')}
                         </span>
                       </p>
                       <div className="mt-2 space-y-2">
@@ -1976,11 +1685,6 @@ export default function ScanTab({
                       <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-slate-600 dark:text-slate-300">
                         metadata.json
                       </summary>
-                      {storageDetails.metadataPath ? (
-                        <p className="mt-2 break-all font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                          {storageDetails.metadataPath}
-                        </p>
-                      ) : null}
                       <pre className="mt-2 max-h-56 overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
                         {storageDetails.metadataJson}
                       </pre>
@@ -2004,26 +1708,31 @@ export default function ScanTab({
                           prompt: {dotsMocrAnalysis.result.prompt_mode || '-'}
                         </span>
                       </div>
-                      {dotsMocrFields ? (
+                      {dotsMocrDisplayFields ? (
                         <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                          {DOTS_MOCR_FIELD_LABELS.map(({ key, label }) => (
+                          {dotsMocrDisplayFields.map((field) => (
                             <div
-                              key={key}
+                              key={field.keyPath || field.label}
                               className="rounded-md border border-cyan-200 bg-white p-2 dark:border-cyan-500/30 dark:bg-slate-950/70"
                             >
                               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-                                {label}
+                                {field.label}
                               </p>
                               <p className="mt-1 break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
-                                {dotsMocrFields[key]}
+                                {field.value}
                               </p>
                             </div>
                           ))}
                         </div>
                       ) : null}
-                      <pre className="mt-3 max-h-64 overflow-auto rounded-md border border-cyan-200 bg-white p-2 text-[11px] text-slate-700 dark:border-cyan-500/30 dark:bg-slate-950 dark:text-slate-300">
-                        {dotsMocrAnalysis.result.content || '-'}
-                      </pre>
+                      <details className="mt-3 rounded-md border border-cyan-200 bg-white px-3 py-2 dark:border-cyan-500/30 dark:bg-slate-950/70">
+                        <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300">
+                          Ham JSON
+                        </summary>
+                        <pre className="mt-2 max-h-64 overflow-auto rounded-md border border-cyan-200 bg-slate-50 p-2 text-[11px] text-slate-700 dark:border-cyan-500/30 dark:bg-slate-950 dark:text-slate-300">
+                          {dotsMocrAnalysis.result.raw_response_json || dotsMocrAnalysis.result.content || '-'}
+                        </pre>
+                      </details>
                     </details>
                   ) : null}
                 </article>
