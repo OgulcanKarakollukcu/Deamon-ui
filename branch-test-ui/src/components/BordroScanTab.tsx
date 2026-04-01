@@ -8,7 +8,7 @@ import {
   releaseScanner,
   reserveScanner,
   resolveStorageObjectPaths,
-  scanBordroDocument,
+  scanBordro,
 } from '../services'
 import type { BordroScanMetadata, ScanColorMode, ScanPageSize, Scanner } from '../types'
 
@@ -801,10 +801,10 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
     try {
       addLog(
         'info',
-        `Istek: scanServiceScanBordro {scanner_id:${scannerId}, session_id:${sessionId}, bordro_id:${targetBordroId}, duplex:${isDuplex ? 'true' : 'false'}, dpi:${scanDpi.toString()}, color_mode:${scanColorMode}, page_size:${scanPageSize}}`,
+        `Istek: scanBordro {scanner_id:${scannerId}, session_id:${sessionId}, bordro_id:${targetBordroId}, duplex:${isDuplex ? 'true' : 'false'}, dpi:${scanDpi.toString()}, color_mode:${scanColorMode}, page_size:${scanPageSize}}`,
       )
 
-      const metadata = await scanBordroDocument({
+      const metadata = await scanBordro({
         scanner_id: scannerId,
         session_id: sessionId,
         bordro_id: targetBordroId,
@@ -824,12 +824,12 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
         resultId: nextResult.resultId,
         side: 'front',
       })
-      addLog('info', `Yanit: scanServiceScanBordro object_path=${metadata.object_path}`)
+      addLog('info', `Yanit: scanBordro object_path=${metadata.object_path}`)
       void loadStorageDetails(nextResult, true)
     } catch (scanError) {
       const message = getErrorMessage(scanError)
       setError(message)
-      addLog('error', `Hata: scanServiceScanBordro ${message}`)
+      addLog('error', `Hata: scanBordro ${message}`)
     } finally {
       setIsScanning(false)
     }

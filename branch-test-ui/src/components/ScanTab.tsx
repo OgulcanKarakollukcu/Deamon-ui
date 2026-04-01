@@ -9,7 +9,8 @@ import {
   releaseScanner,
   reserveScanner,
   resolveStorageObjectPaths,
-  scanBordroStream,
+  scanAllChequeStream,
+  scanCheque,
 } from '../services/branchClient'
 import type {
   ChequeMetadata,
@@ -462,6 +463,7 @@ export default function ScanTab({
     {},
   )
   const [isAnalyzingDotsMocrBatch, setIsAnalyzingDotsMocrBatch] = useState<boolean>(false)
+  const [rescanningChequeKey, setRescanningChequeKey] = useState<string | null>(null)
   const chequeStorageDetailsRef = useRef<Record<string, ChequeStorageState>>({})
 
   const activeScanner = useMemo(() => {
@@ -598,6 +600,22 @@ export default function ScanTab({
     })
   }, [])
 
+  const clearChequeStorageState = useCallback((chequeKey: string): void => {
+    setChequeStorageDetails((previousDetails) => {
+      const existingDetails = previousDetails[chequeKey]
+      if (!existingDetails) {
+        return previousDetails
+      }
+
+      revokePreviewUrl(existingDetails.frontPreviewUrl)
+      revokePreviewUrl(existingDetails.backPreviewUrl)
+
+      const nextDetails = { ...previousDetails }
+      delete nextDetails[chequeKey]
+      return nextDetails
+    })
+  }, [])
+
   const updateDotsMocrAnalysisState = useCallback(
     (
       chequeKey: string,
@@ -610,6 +628,18 @@ export default function ScanTab({
     },
     [],
   )
+
+  const clearDotsMocrAnalysisState = useCallback((chequeKey: string): void => {
+    setDotsMocrAnalyses((previousAnalyses) => {
+      if (!(chequeKey in previousAnalyses)) {
+        return previousAnalyses
+      }
+
+      const nextAnalyses = { ...previousAnalyses }
+      delete nextAnalyses[chequeKey]
+      return nextAnalyses
+    })
+  }, [])
 
   const loadChequeStorageDetails = useCallback(
     async (cheque: ChequeMetadata, forceReload = false): Promise<void> => {
@@ -829,6 +859,100 @@ export default function ScanTab({
     }
   }, [isAnalyzingDotsMocrBatch, runDotsMocrAnalysisForCheque, sortedScannedCheques])
 
+  const handleRescanCheque = useCallback(
+    async (cheque: ChequeMetadata): Promise<void> => {
+      setError(null)
+
+      const scannerId = reservedScannerId ?? activeScanner?.scanner_id ?? null
+      if (!isReserved || scannerId === null) {
+        setError('Yeniden tarama için önce scanner rezervasyonu yapın.')
+        return
+      }
+
+      if (activeBordroId === null) {
+        setError('Önce bordro seçin.')
+        return
+      }
+
+      if (!SCAN_DPI_OPTIONS.includes(scanDpi)) {
+        setError('DPI alanı 300 veya 600 olmalı.')
+        return
+      }
+
+      const currentChequeKey = getChequeResultKey(cheque)
+      setRescanningChequeKey(currentChequeKey)
+
+      try {
+        addLog(
+          'info',
+          `İstek: scanCheque {scanner_id:${scannerId}, session_id:${sessionId}, bordro_id:${activeBordroId}, cheque_no:${cheque.cheque_no.toString()}, duplex:${isDuplex ? 'true' : 'false'}, dpi:${scanDpi.toString()}, color_mode:${scanColorMode}, page_size:${scanPageSize}}`,
+        )
+
+        const rescannedCheque = await scanCheque({
+          scanner_id: scannerId,
+          session_id: sessionId,
+          bordro_id: activeBordroId,
+          cheque_no: cheque.cheque_no,
+          duplex: isDuplex,
+          dpi: scanDpi,
+          color_mode: scanColorMode,
+          page_size: scanPageSize,
+        })
+
+        const nextChequeKey = getChequeResultKey(rescannedCheque)
+        clearChequeStorageState(currentChequeKey)
+        clearDotsMocrAnalysisState(currentChequeKey)
+        if (nextChequeKey !== currentChequeKey) {
+          clearChequeStorageState(nextChequeKey)
+          clearDotsMocrAnalysisState(nextChequeKey)
+        }
+
+        setScannedCheques((previousCheques) => {
+          const existingIndex = previousCheques.findIndex(
+            (currentCheque) => currentCheque.cheque_no === rescannedCheque.cheque_no,
+          )
+
+          if (existingIndex < 0) {
+            return [...previousCheques, rescannedCheque]
+          }
+
+          const nextCheques = [...previousCheques]
+          nextCheques[existingIndex] = rescannedCheque
+          return nextCheques
+        })
+        setSelectedChequeKey(nextChequeKey)
+        setLatestCompletedChequeNo(rescannedCheque.cheque_no)
+        void loadChequeStorageDetails(rescannedCheque, true)
+
+        addLog(
+          'info',
+          `Yanıt: scanCheque cheque_no=${rescannedCheque.cheque_no.toString()} object_path=${rescannedCheque.object_path}`,
+        )
+      } catch (rescanError) {
+        const message = getErrorMessage(rescanError)
+        setError(message)
+        addLog('error', `Hata: scanCheque cheque_no=${cheque.cheque_no.toString()} ${message}`)
+      } finally {
+        setRescanningChequeKey(null)
+      }
+    },
+    [
+      activeBordroId,
+      activeScanner?.scanner_id,
+      addLog,
+      clearChequeStorageState,
+      clearDotsMocrAnalysisState,
+      isDuplex,
+      isReserved,
+      loadChequeStorageDetails,
+      reservedScannerId,
+      scanColorMode,
+      scanDpi,
+      scanPageSize,
+      sessionId,
+    ],
+  )
+
   useEffect(() => {
     for (const cheque of scannedCheques) {
       const chequeKey = getChequeResultKey(cheque)
@@ -973,11 +1097,11 @@ export default function ScanTab({
       })
       addLog(
         'info',
-        `İstek: scanBordro {scanner_id:${scannerId}, session_id:${sessionId}, bordro_id:${bordroId}, duplex:${isDuplex ? 'true' : 'false'}, dpi:${dpi.toString()}, color_mode:${colorMode}, page_size:${pageSize}}`,
+        `İstek: scanAllCheque {scanner_id:${scannerId}, session_id:${sessionId}, bordro_id:${bordroId}, duplex:${isDuplex ? 'true' : 'false'}, dpi:${dpi.toString()}, color_mode:${colorMode}, page_size:${pageSize}}`,
       )
       clearAllChequeStorageDetails()
       setScannedCheques([])
-      await scanBordroStream({
+      await scanAllChequeStream({
         scanner_id: scannerId,
         session_id: sessionId,
         bordro_id: bordroId,
@@ -1005,17 +1129,17 @@ export default function ScanTab({
           })
           addLog(
             'info',
-            `Yanıt: scanBordro cheque_no=${progress.cheque.cheque_no.toString()} tamamlandı (${progress.completed_count.toString()}/${progress.total_count.toString()})`,
+            `Yanıt: scanAllCheque cheque_no=${progress.cheque.cheque_no.toString()} tamamlandı (${progress.completed_count.toString()}/${progress.total_count.toString()})`,
           )
         },
       })
-      addLog('info', `Yanıt: scanBordro cheques=${completedCheques.length.toString()}`)
+      addLog('info', `Yanıt: scanAllCheque cheques=${completedCheques.length.toString()}`)
 
       if (completedCheques.length === 0) {
         const emptyResultMessage =
           'Bordro için taranacak çek bulunamadı. Muhtemelen bordro cheque_count=0 oluşturuldu.'
         setError(emptyResultMessage)
-        addLog('warn', `Uyarı: scanBordro ${emptyResultMessage}`)
+        addLog('warn', `Uyarı: scanAllCheque ${emptyResultMessage}`)
         return
       }
 
@@ -1026,7 +1150,7 @@ export default function ScanTab({
       if (unexpectedPageCountCheques.length > 0) {
         addLog(
           'warn',
-          `Uyarı: scanBordro ${unexpectedPageCountCheques.length.toString()} çekte page_count beklenen ${expectedPageCount.toString()} dışında.`,
+          `Uyarı: scanAllCheque ${unexpectedPageCountCheques.length.toString()} çekte page_count beklenen ${expectedPageCount.toString()} dışında.`,
         )
       }
     } catch (scanError) {
@@ -1035,10 +1159,10 @@ export default function ScanTab({
         const failedPreconditionMessage =
           'Tarama başlatılamadı: failed_precondition. Muhtemelen bordro cheque_count=0 oluşturuldu.'
         setError(failedPreconditionMessage)
-        addLog('warn', `Uyarı: scanBordro ${message}`)
+        addLog('warn', `Uyarı: scanAllCheque ${message}`)
       } else {
         setError(message)
-        addLog('error', `Hata: scanBordro ${message}`)
+      addLog('error', `Hata: scanAllCheque ${message}`)
       }
     } finally {
       setIsScanning(false)
@@ -1459,6 +1583,7 @@ export default function ScanTab({
                     dotsMocrAnalysis.result.raw_response_json,
                   )
                 : null
+              const isRescanningThisCheque = rescanningChequeKey === chequeKey
               const isDetailsLoading = storageDetails?.isLoading ?? true
               const metadata = storageDetails?.metadata
               const micrData = firstNonEmpty(cheque.micr_data, metadata?.micr_data, cheque.micr) ?? '-'
@@ -1542,6 +1667,16 @@ export default function ScanTab({
                       >
                         {validationStatus.label}
                       </span>
+                      <button
+                        type="button"
+                        disabled={isScanning || rescanningChequeKey !== null || !isReserved}
+                        onClick={() => {
+                          void handleRescanCheque(cheque)
+                        }}
+                        className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20"
+                      >
+                        {isRescanningThisCheque ? 'Yeniden Taranıyor…' : 'Yeniden Tara'}
+                      </button>
                       <button
                         type="button"
                         disabled={isDetailsLoading}

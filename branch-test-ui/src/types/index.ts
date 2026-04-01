@@ -171,7 +171,7 @@ export type DotsMocrChequeAnalysisResult = {
   raw_response_json: string
 }
 
-export type ScanBordroProgress = {
+export type ScanAllChequeProgress = {
   cheque: ChequeMetadata
   completed_count: number
   total_count: number

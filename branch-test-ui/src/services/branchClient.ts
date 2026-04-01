@@ -13,7 +13,7 @@ import type {
   ReservationInfo,
   ResetScannerResponse,
   ScanColorMode,
-  ScanBordroProgress,
+  ScanAllChequeProgress,
   ScanPageSize,
   Scanner,
   SupportSnapshot,
@@ -51,8 +51,8 @@ const CREATE_BORDRO_PATH = '/daemon.cheque.ChequeService/CreateBordro'
 const ANALYZE_CHEQUE_IMAGE_PATH = '/daemon.cheque.ChequeService/AnalyzeChequeImage'
 const ANALYZE_CHEQUE_WITH_DOTS_MOCR_PATH = '/daemon.cheque.ChequeService/AnalyzeChequeWithDotsMocr'
 const SCAN_CHEQUE_PATH = '/daemon.cheque.ChequeService/ScanCheque'
+const SCAN_ALL_CHEQUE_PATH = '/daemon.cheque.ChequeService/ScanAllCheque'
 const SCAN_BORDRO_PATH = '/daemon.cheque.ChequeService/ScanBordro'
-const SCAN_SERVICE_SCAN_BORDRO_PATH = '/daemon.scan.ScanService/ScanBordro'
 const SCAN_DOCUMENT_PATH = '/daemon.scan.ScanService/ScanDocument'
 const STORAGE_LIST_OBJECTS_PATH = '/daemon.storage.StorageService/ListObjects'
 const STORAGE_GET_OBJECT_PATH = '/daemon.storage.StorageService/GetObject'
@@ -1248,7 +1248,7 @@ function parseAnalyzeChequeWithDotsMocrResponse(
   return result
 }
 
-function parseScanBordroProgress(payload: Uint8Array): ProtoScanBordroProgress {
+function parseScanAllChequeProgress(payload: Uint8Array): ProtoScanAllChequeProgress {
   let offset = 0
   let cheque: ProtoChequeMetadata | null = null
   let completedCount = 0
@@ -1463,7 +1463,7 @@ function parseBordroScanMetadata(payload: Uint8Array): ProtoBordroScanMetadata {
   return metadata
 }
 
-function parseScanServiceBordroResponse(payload: Uint8Array): ProtoBordroScanMetadata {
+function parseScanBordroResponse(payload: Uint8Array): ProtoBordroScanMetadata {
   let offset = 0
 
   while (offset < payload.length) {
@@ -1481,7 +1481,7 @@ function parseScanServiceBordroResponse(payload: Uint8Array): ProtoBordroScanMet
     offset = skipUnknownField(payload, offset, wireType)
   }
 
-  throw new Error('scanServiceScanBordro response did not include metadata')
+  throw new Error('scanBordro response did not include metadata')
 }
 
 function parseDocumentPageMetadata(payload: Uint8Array): ProtoDocumentPageMetadata {
@@ -2238,7 +2238,7 @@ type ProtoBordroScanMetadata = {
   color_mode_verified: boolean
 }
 
-type ProtoScanBordroProgress = {
+type ProtoScanAllChequeProgress = {
   cheque: ProtoChequeMetadata | null
   completed_count: number
   total_count: number
@@ -2479,7 +2479,7 @@ export async function scanCheque(params: {
   return mapProtoMetadataToUi(metadata, params)
 }
 
-export async function scanBordro(params: {
+export async function scanAllCheque(params: {
   scanner_id: string
   session_id: string
   bordro_id: string
@@ -2490,7 +2490,7 @@ export async function scanBordro(params: {
 }): Promise<ChequeMetadata[]> {
   const cheques: ChequeMetadata[] = []
 
-  await scanBordroStream({
+  await scanAllChequeStream({
     ...params,
     onProgress(progress) {
       cheques.push(progress.cheque)
@@ -2500,7 +2500,7 @@ export async function scanBordro(params: {
   return [...cheques].sort((left, right) => left.cheque_no - right.cheque_no)
 }
 
-export async function scanBordroStream(params: {
+export async function scanAllChequeStream(params: {
   scanner_id: string
   session_id: string
   bordro_id: string
@@ -2508,14 +2508,14 @@ export async function scanBordroStream(params: {
   dpi: number
   color_mode: ScanColorMode
   page_size: ScanPageSize
-  onProgress?: (progress: ScanBordroProgress) => Promise<void> | void
+  onProgress?: (progress: ScanAllChequeProgress) => Promise<void> | void
 }): Promise<void> {
   await callGrpcWebServerStreamingLive(
-    'scanBordro',
-    SCAN_BORDRO_PATH,
+    'scanAllCheque',
+    SCAN_ALL_CHEQUE_PATH,
     encodeScanBordroRequest(params),
     async (message) => {
-      const progress = parseScanBordroProgress(message)
+      const progress = parseScanAllChequeProgress(message)
       if (progress.cheque === null) {
         return
       }
@@ -2541,7 +2541,7 @@ export async function scanBordroStream(params: {
   )
 }
 
-export async function scanBordroDocument(params: {
+export async function scanBordro(params: {
   scanner_id: string
   session_id: string
   bordro_id: string
@@ -2551,12 +2551,12 @@ export async function scanBordroDocument(params: {
   page_size: ScanPageSize
 }): Promise<BordroScanMetadata> {
   const response = await callGrpcWebUnary(
-    'scanServiceScanBordro',
-    SCAN_SERVICE_SCAN_BORDRO_PATH,
+    'scanBordro',
+    SCAN_BORDRO_PATH,
     encodeScanBordroRequest(params),
   )
 
-  return mapProtoBordroScanMetadataToUi(parseScanServiceBordroResponse(response), params.page_size)
+  return mapProtoBordroScanMetadataToUi(parseScanBordroResponse(response), params.page_size)
 }
 
 export async function scanDocument(params: {

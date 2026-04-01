@@ -1347,7 +1347,6 @@ export default function BordroTab({
                   onScanSettingsChange={handleScanSettingsChange}
                   onReservationStateChange={setScanReservationState}
                   defaultMode="CHEQUE"
-                  showModeSelector={false}
                 />
               </div>
             </div>

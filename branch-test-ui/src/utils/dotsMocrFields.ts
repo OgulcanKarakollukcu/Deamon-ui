@@ -4,22 +4,6 @@ export type DotsMocrDisplayField = {
   value: string
 }
 
-const KNOWN_FIELD_LABELS: Record<string, string> = {
-  Bank_Name: 'Banka',
-  Branch_Info: 'Sube',
-  Date_of_Issue: 'Keside Tarihi',
-  Place_of_Issue: 'Keside Yeri',
-  Currency: 'Para Birimi',
-  Amount_Numeric: 'Tutar (Sayisal)',
-  Amount_Words: 'Yalniz',
-  Payee_Name: 'Emrine',
-  Drawer_Name: 'Kesideci',
-  IBAN: 'IBAN',
-  Check_Number: 'Cek No',
-  MICR_Line: 'MICR',
-  Check_Type: 'Cek Tipi',
-}
-
 function normalizeScalarValue(value: unknown): string {
   if (value === null || value === undefined) {
     return '-'
@@ -37,45 +21,18 @@ function normalizeScalarValue(value: unknown): string {
   return '-'
 }
 
-function prettifySegment(segment: string): string {
-  if (segment in KNOWN_FIELD_LABELS) {
-    return KNOWN_FIELD_LABELS[segment]!
-  }
-
-  const indexMatch = /^\[(\d+)\]$/.exec(segment)
-  if (indexMatch) {
-    return `Kayit ${String(Number(indexMatch[1]) + 1)}`
-  }
-
-  const normalized = segment
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_\-.]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  if (normalized.length === 0) {
-    return 'Alan'
-  }
-
-  return normalized
-    .split(' ')
-    .map((part) => {
-      const upper = part.toUpperCase()
-      if (['IBAN', 'MICR', 'OCR', 'QR', 'JSON', 'VKN', 'TCKN'].includes(upper)) {
-        return upper
-      }
-
-      return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
-    })
-    .join(' ')
-}
-
-function formatKeyPathLabel(pathSegments: string[]): string {
+function formatRawKeyPath(pathSegments: string[]): string {
   if (pathSegments.length === 0) {
-    return 'Yanit'
+    return 'value'
   }
 
-  return pathSegments.map(prettifySegment).join(' / ')
+  return pathSegments.reduce((result, segment) => {
+    if (segment.startsWith('[')) {
+      return `${result}${segment}`
+    }
+
+    return result.length > 0 ? `${result}.${segment}` : segment
+  }, '')
 }
 
 function flattenValue(
@@ -90,9 +47,10 @@ function flattenValue(
     typeof value === 'number' ||
     typeof value === 'boolean'
   ) {
+    const keyPath = formatRawKeyPath(pathSegments)
     fields.push({
-      keyPath: pathSegments.join('.'),
-      label: formatKeyPathLabel(pathSegments),
+      keyPath,
+      label: keyPath,
       value: normalizeScalarValue(value),
     })
     return
@@ -100,18 +58,20 @@ function flattenValue(
 
   if (Array.isArray(value)) {
     if (value.length === 0) {
+      const keyPath = formatRawKeyPath(pathSegments)
       fields.push({
-        keyPath: pathSegments.join('.'),
-        label: formatKeyPathLabel(pathSegments),
+        keyPath,
+        label: keyPath,
         value: '-',
       })
       return
     }
 
     if (value.every((item) => item === null || ['string', 'number', 'boolean'].includes(typeof item))) {
+      const keyPath = formatRawKeyPath(pathSegments)
       fields.push({
-        keyPath: pathSegments.join('.'),
-        label: formatKeyPathLabel(pathSegments),
+        keyPath,
+        label: keyPath,
         value: value.map(normalizeScalarValue).join(', '),
       })
       return
@@ -126,9 +86,10 @@ function flattenValue(
   if (typeof value === 'object') {
     const entries = Object.entries(value as Record<string, unknown>)
     if (entries.length === 0) {
+      const keyPath = formatRawKeyPath(pathSegments)
       fields.push({
-        keyPath: pathSegments.join('.'),
-        label: formatKeyPathLabel(pathSegments),
+        keyPath,
+        label: keyPath,
         value: '-',
       })
       return
@@ -140,9 +101,10 @@ function flattenValue(
     return
   }
 
+  const keyPath = formatRawKeyPath(pathSegments)
   fields.push({
-    keyPath: pathSegments.join('.'),
-    label: formatKeyPathLabel(pathSegments),
+    keyPath,
+    label: keyPath,
     value: String(value),
   })
 }

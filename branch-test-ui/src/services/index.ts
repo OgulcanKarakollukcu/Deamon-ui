@@ -14,10 +14,10 @@ export {
   resolveStorageObjectPaths,
   reserveScanner,
   resetScanner,
-  scanBordroDocument,
+  scanAllCheque,
+  scanAllChequeStream,
+  scanBordro,
   scanCheque,
   scanDocument,
   scanDocumentStream,
-  scanBordro,
-  scanBordroStream,
 } from './branchClient'

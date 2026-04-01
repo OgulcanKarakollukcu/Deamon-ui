@@ -49,6 +49,7 @@ const SCANNER_STATUS_META: Record<
 type ScanForm = {
   documentId: string
   documentType: DocumentType
+  scanAllFromFeeder: boolean
   sheetCount: string
   duplex: boolean
   dpi: number
@@ -76,6 +77,7 @@ type ViewerState = {
 const DEFAULT_FORM: ScanForm = {
   documentId: '',
   documentType: 'GENERIC',
+  scanAllFromFeeder: false,
   sheetCount: '1',
   duplex: false,
   dpi: 300,
@@ -536,9 +538,14 @@ export default function DocumentScanTab() {
       return
     }
 
-    const sheetCount = Number.parseInt(form.sheetCount, 10)
-    if (!Number.isFinite(sheetCount) || sheetCount <= 0) {
-      setError('Sheet count 1 veya daha büyük bir sayı olmalı.')
+    const trimmedSheetCount = form.sheetCount.trim()
+    const sheetCount = form.scanAllFromFeeder
+      ? 0
+      : trimmedSheetCount.length === 0
+        ? 0
+        : Number.parseInt(trimmedSheetCount, 10)
+    if (!Number.isFinite(sheetCount) || sheetCount < 0) {
+      setError('Sheet count boş bırakılabilir veya 1 ve üzeri bir sayı olmalı.')
       return
     }
 
@@ -574,7 +581,7 @@ export default function DocumentScanTab() {
           setTotalSheetCount(progress.total_sheet_count)
           addLog(
             'info',
-            `Yanıt: scanDocument sheet=${progress.completed_sheet_count.toString()}/${progress.total_sheet_count.toString()} object_path=${progress.metadata.object_path}`,
+            `Yanıt: scanDocument sheet=${progress.completed_sheet_count.toString()}/${progress.total_sheet_count > 0 ? progress.total_sheet_count.toString() : '?'} object_path=${progress.metadata.object_path}`,
           )
         },
       })
@@ -591,7 +598,7 @@ export default function DocumentScanTab() {
   const scanDisabled = !isReserved || (reservedScannerId ?? activeScannerId) === null
   const viewerInfo = useMemo(() => formatViewerInfo(viewer), [viewer])
   const scannedPageCount = result?.pages.length ?? 0
-  const remainingPageCount = Math.max(totalSheetCount - scannedPageCount, 0)
+  const remainingPageCount = totalSheetCount > 0 ? Math.max(totalSheetCount - scannedPageCount, 0) : null
   const progressPercent =
     totalSheetCount > 0 ? Math.min(100, Math.round((scannedPageCount / totalSheetCount) * 100)) : 0
   const effectiveSettingRows = result
@@ -809,15 +816,35 @@ export default function DocumentScanTab() {
 
           <label className="space-y-1 text-sm">
             <span className="font-medium text-slate-700 dark:text-slate-200">Sheet Count</span>
+            <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={form.scanAllFromFeeder}
+                disabled={isScanning}
+                onChange={(event) => {
+                  const checked = event.target.checked
+                  setForm((current) => ({
+                    ...current,
+                    scanAllFromFeeder: checked,
+                    sheetCount: checked ? '' : current.sheetCount.length === 0 ? '1' : current.sheetCount,
+                  }))
+                }}
+                className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 disabled:cursor-not-allowed"
+              />
+              <span>Haznedeki her seyi tara</span>
+            </div>
             <input
               type="number"
-              min={1}
+              min={0}
               step={1}
               value={form.sheetCount}
-              disabled={isScanning}
+              disabled={isScanning || form.scanAllFromFeeder}
               onChange={(event) => {
                 setForm((current) => ({ ...current, sheetCount: event.target.value }))
               }}
+              placeholder={
+                form.scanAllFromFeeder ? 'Hazne modu aktif' : 'Bos = haznedeki tum kagitlar'
+              }
               className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </label>
@@ -937,7 +964,7 @@ export default function DocumentScanTab() {
 
           <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
             <span>{result ? `${result.pages.length.toString()} yaprak geldi` : 'Henüz sonuç yok'}</span>
-            {totalSheetCount > 0 ? <span>/ {totalSheetCount.toString()} bekleniyor</span> : null}
+            {totalSheetCount > 0 ? <span>/ {totalSheetCount.toString()} bekleniyor</span> : <span>/ hazne modu</span>}
           </div>
         </div>
 
@@ -954,7 +981,7 @@ export default function DocumentScanTab() {
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   {totalSheetCount > 0
                     ? `${scannedPageCount.toString()}/${totalSheetCount.toString()} yaprak işlendi.`
-                    : `${scannedPageCount.toString()} yaprak hazır.`}
+                    : `${scannedPageCount.toString()} yaprak işlendi, toplam hazneden okunuyor.`}
                 </p>
                 {selectedPage ? (
                   <p className="text-xs font-medium text-cyan-700 dark:text-cyan-300">
@@ -976,7 +1003,7 @@ export default function DocumentScanTab() {
                     Kalan
                   </p>
                   <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                    {remainingPageCount.toString()}
+                    {remainingPageCount === null ? '-' : remainingPageCount.toString()}
                   </p>
                 </div>
                 <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
