@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/QrScanner/QrScanner.tsx","./src/components/QrScanner/index.ts","./src/hooks/useCamera.ts","./src/hooks/useQrDecoder.ts","./src/pages/QrScannerDemo.tsx","./src/utils/zxingTest.ts"],"version":"5.9.3"}
