@@ -48,13 +48,13 @@ export function QrScanner({ onResult, onError }: QrScannerProps) {
   }, [])
 
   const overlayBorderClass = detected
-    ? 'border-emerald-400 shadow-[0_0_0_1px_rgba(74,222,128,0.6),0_0_26px_rgba(74,222,128,0.5)]'
-    : 'border-white/70 shadow-[0_0_0_1px_rgba(255,255,255,0.26)]'
+    ? 'border-[#22C55E] shadow-[0_0_0_1px_rgba(34,197,94,0.7),0_0_26px_rgba(34,197,94,0.45)]'
+    : 'border-[#22C55E]/80 shadow-[0_0_0_1px_rgba(34,197,94,0.3)]'
 
-  const cornerClass = detected ? 'bg-emerald-400' : 'bg-white'
+  const cornerClass = detected ? 'bg-[#22C55E]' : 'bg-[#22C55E]'
 
   return (
-    <section className="relative mx-auto aspect-square w-full max-w-[26rem] overflow-hidden rounded-3xl border border-slate-700/80 bg-slate-950 shadow-2xl shadow-slate-950/60">
+    <section className="relative h-full w-full overflow-hidden bg-slate-950">
       <video
         ref={videoRef}
         autoPlay

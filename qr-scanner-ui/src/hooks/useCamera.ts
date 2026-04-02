@@ -70,7 +70,11 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement>) {
         setReady(false)
 
         mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
         })
 
         if (!isMounted) {
