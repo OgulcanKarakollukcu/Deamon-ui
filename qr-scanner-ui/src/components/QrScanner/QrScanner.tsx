@@ -54,7 +54,7 @@ export function QrScanner({ onResult, onError }: QrScannerProps) {
   const cornerClass = detected ? 'bg-[#22C55E]' : 'bg-[#22C55E]'
 
   return (
-    <section className="relative h-full w-full overflow-hidden bg-slate-950">
+    <section className="relative h-full w-full overflow-hidden bg-black">
       <video
         ref={videoRef}
         autoPlay
@@ -100,30 +100,30 @@ export function QrScanner({ onResult, onError }: QrScannerProps) {
         </div>
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-transparent px-5 pb-5 pt-14">
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-white/95 via-white/70 to-transparent px-5 pb-5 pt-14">
         {detected ? (
           <div className="space-y-3">
-            <p className="text-sm font-medium text-emerald-200">Kod algılandı</p>
-            <p className="text-xl font-bold leading-snug text-emerald-100">
+            <p className="text-sm font-medium text-emerald-700">Kod algılandı</p>
+            <p className="text-xl font-bold leading-snug text-emerald-900">
               {detected}
             </p>
             <button
               type="button"
               onClick={handleReset}
-              className="rounded-lg border border-emerald-300/60 bg-emerald-400/15 px-4 py-2 text-sm font-semibold text-emerald-100 transition-colors hover:bg-emerald-400/25"
+              className="rounded-lg border border-[#D6E5DC] bg-[#EAF4EE] px-4 py-2 text-sm font-semibold text-[#007A3D] transition-colors hover:bg-[#DFEDE4]"
             >
               Yeniden Tara
             </button>
           </div>
         ) : (
-          <p className="pointer-events-none text-sm font-medium text-slate-100">
+          <p className="pointer-events-none text-sm font-medium text-slate-800">
             DataMatrix veya QR kodu rehbere hizalayın
           </p>
         )}
       </div>
 
       {error ? (
-        <div className="absolute left-4 right-4 top-4 rounded-lg border border-red-500/60 bg-red-500/20 px-3 py-2 text-sm font-medium text-red-100">
+        <div className="absolute left-4 right-4 top-4 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
           {error}
         </div>
       ) : null}

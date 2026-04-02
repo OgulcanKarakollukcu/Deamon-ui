@@ -12,3 +12,6 @@ export type { BatchPhotoStepProps } from './BatchPhotoStep'
 
 export { SessionSummaryStep } from './SessionSummaryStep'
 export type { SessionSummaryStepProps } from './SessionSummaryStep'
+
+export { StartConsentStep } from './StartConsentStep'
+export type { StartConsentStepProps } from './StartConsentStep'

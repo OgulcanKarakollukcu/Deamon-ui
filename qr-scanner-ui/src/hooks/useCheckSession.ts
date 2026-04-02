@@ -15,6 +15,9 @@ export interface UseCheckSessionResult {
   session: CheckSession
   step: CheckCaptureStep
   currentCheck: Partial<CapturedCheck>
+  start: () => void
+  proceedToCheckPhoto: () => void
+  goToHomeLanding: () => void
   saveCheckPhoto: (dataUrl: string) => void
   saveQrValue: (value: string) => void
   confirmCheck: () => void
@@ -26,6 +29,9 @@ export interface UseCheckSessionResult {
 }
 
 type CheckSessionAction =
+  | { type: 'START' }
+  | { type: 'PROCEED_TO_CHECK_PHOTO' }
+  | { type: 'GO_TO_HOME_LANDING' }
   | { type: 'SAVE_CHECK_PHOTO'; dataUrl: string }
   | { type: 'SAVE_QR_VALUE'; value: string }
   | { type: 'CONFIRM_CHECK' }
@@ -47,7 +53,7 @@ function createInitialState(): CheckSessionState {
       checks: [],
       batchPhotoDataUrl: null,
     },
-    step: 'check-photo',
+    step: 'home-landing',
     currentCheck: createCurrentCheck(),
   }
 }
@@ -102,6 +108,24 @@ function checkSessionReducer(
   action: CheckSessionAction,
 ): CheckSessionState {
   switch (action.type) {
+    case 'START':
+      return {
+        ...state,
+        step: 'pre-start-info',
+      }
+
+    case 'PROCEED_TO_CHECK_PHOTO':
+      return {
+        ...state,
+        step: 'check-photo',
+      }
+
+    case 'GO_TO_HOME_LANDING':
+      return {
+        ...state,
+        step: 'home-landing',
+      }
+
     case 'SAVE_CHECK_PHOTO':
       return {
         ...state,
@@ -163,8 +187,20 @@ function checkSessionReducer(
 export function useCheckSession(): UseCheckSessionResult {
   const [state, dispatch] = useReducer(checkSessionReducer, undefined, createInitialState)
 
+  const start = (): void => {
+    dispatch({ type: 'START' })
+  }
+
   const saveCheckPhoto = (dataUrl: string): void => {
     dispatch({ type: 'SAVE_CHECK_PHOTO', dataUrl })
+  }
+
+  const proceedToCheckPhoto = (): void => {
+    dispatch({ type: 'PROCEED_TO_CHECK_PHOTO' })
+  }
+
+  const goToHomeLanding = (): void => {
+    dispatch({ type: 'GO_TO_HOME_LANDING' })
   }
 
   const saveQrValue = (value: string): void => {
@@ -199,6 +235,9 @@ export function useCheckSession(): UseCheckSessionResult {
     session: state.session,
     step: state.step,
     currentCheck: state.currentCheck,
+    start,
+    proceedToCheckPhoto,
+    goToHomeLanding,
     saveCheckPhoto,
     saveQrValue,
     confirmCheck,

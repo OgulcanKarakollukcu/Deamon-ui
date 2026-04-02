@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BireyselKredi } from './pages/BireyselKredi'
 import { Home } from './pages/Home'
-import { Landing } from './pages/Landing'
+import { KurumsalKredi } from './pages/KurumsalKredi'
 import { runZxingSmokeTest } from './utils/zxingTest'
 
 function App() {
-  const [showLanding, setShowLanding] = useState(true)
+  const { pathname } = useLocation()
 
   useEffect(() => {
     void runZxingSmokeTest().catch((error: unknown) => {
@@ -17,11 +19,19 @@ function App() {
     })
   }, [])
 
-  if (showLanding) {
-    return <Landing onStart={() => setShowLanding(false)} />
-  }
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [pathname])
 
-  return <Home onSessionReset={() => setShowLanding(true)} />
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/home" replace />} />
+      <Route path="/home" element={<Home />} />
+      <Route path="/bireysel-kredi" element={<BireyselKredi />} />
+      <Route path="/kurumsal-kredi" element={<KurumsalKredi />} />
+      <Route path="*" element={<Navigate to="/home" replace />} />
+    </Routes>
+  )
 }
 
 export default App

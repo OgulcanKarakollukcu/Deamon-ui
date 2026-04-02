@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AppLayout } from '../components/AppLayout'
 import {
   BatchPhotoStep,
@@ -6,13 +7,13 @@ import {
   CheckSummaryStep,
   QrScanStep,
   SessionSummaryStep,
+  StartConsentStep,
 } from '../components/CheckCapture'
+import { SiteFooter } from '../components/SiteFooter'
+import { SideMenu, useMenuState } from '../components/SideMenu'
 import { useCheckSession } from '../hooks/useCheckSession'
 import type { CapturedCheck } from '../types/check'
-
-export interface HomeProps {
-  onSessionReset?: () => void
-}
+import { Landing } from './Landing'
 
 function isCapturedCheck(check: Partial<CapturedCheck>): check is CapturedCheck {
   return Boolean(check.id && check.photoDataUrl && check.qrValue)
@@ -42,11 +43,16 @@ function getSummaryCheckIndex(summaryCheck: CapturedCheck, checks: CapturedCheck
   return index + 1
 }
 
-export function Home({ onSessionReset }: HomeProps) {
+export function Home() {
+  const navigate = useNavigate()
+  const { open, toggle, close } = useMenuState()
   const {
     session,
     step,
     currentCheck,
+    start,
+    proceedToCheckPhoto,
+    goToHomeLanding,
     saveCheckPhoto,
     saveQrValue,
     addAnotherCheck,
@@ -55,25 +61,70 @@ export function Home({ onSessionReset }: HomeProps) {
     reset,
   } = useCheckSession()
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [step])
+
   const handleSessionReset = (): void => {
     reset()
-    onSessionReset?.()
+    navigate('/')
   }
 
   let content: ReactNode
 
   switch (step) {
+    case 'home-landing':
+      content = (
+        <AppLayout
+          stepLabel="Ana Sayfa"
+          stepCurrent={1}
+          stepTotal={1}
+          onMenuOpen={toggle}
+          fullWidth
+        >
+          <Landing onStart={start} embedded />
+        </AppLayout>
+      )
+      break
+
     case 'check-photo':
       content = (
-        <AppLayout stepLabel="Fotoğraf Çek" stepCurrent={1} stepTotal={3}>
+        <AppLayout
+          stepLabel="Fotoğraf Çek"
+          stepCurrent={1}
+          stepTotal={3}
+          onMenuOpen={toggle}
+        >
           <CheckPhotoStep onCapture={saveCheckPhoto} />
+        </AppLayout>
+      )
+      break
+
+    case 'pre-start-info':
+      content = (
+        <AppLayout
+          stepLabel="Bilgilendirme ve KVKK Onayı"
+          stepCurrent={1}
+          stepTotal={1}
+          onMenuOpen={toggle}
+          fullWidth
+        >
+          <StartConsentStep
+            onContinue={proceedToCheckPhoto}
+            onBack={goToHomeLanding}
+          />
         </AppLayout>
       )
       break
 
     case 'qr-scan':
       content = (
-        <AppLayout stepLabel="QR Tara" stepCurrent={2} stepTotal={3}>
+        <AppLayout
+          stepLabel="QR Tara"
+          stepCurrent={2}
+          stepTotal={3}
+          onMenuOpen={toggle}
+        >
           <QrScanStep
             checkPhoto={currentCheck.photoDataUrl ?? ''}
             onScanned={saveQrValue}
@@ -87,18 +138,23 @@ export function Home({ onSessionReset }: HomeProps) {
 
       if (!summaryCheck) {
         content = (
-          <AppLayout stepLabel="Çek Tamamlandı" stepCurrent={3} stepTotal={3}>
-            <section className="space-y-4 rounded-2xl border border-red-500/50 bg-red-500/10 p-5">
-              <h2 className="text-base font-semibold text-red-100">
+          <AppLayout
+            stepLabel="Çek Tamamlandı"
+            stepCurrent={3}
+            stepTotal={3}
+            onMenuOpen={toggle}
+          >
+            <section className="space-y-4 rounded-2xl border border-red-200 bg-red-50 p-5">
+              <h2 className="text-base font-semibold text-red-700">
                 Çek özeti hazırlanamadı
               </h2>
-              <p className="text-sm text-red-100/90">
+              <p className="text-sm text-red-700/90">
                 Çek bilgileri eksik görünüyor. Yeni bir çekle devam edebilirsiniz.
               </p>
               <button
                 type="button"
                 onClick={addAnotherCheck}
-                className="w-full rounded-xl bg-red-200 px-4 py-3 text-sm font-semibold text-red-950 transition-colors hover:bg-red-100"
+                className="w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-500"
               >
                 Yeni Çek Ekle
               </button>
@@ -109,7 +165,12 @@ export function Home({ onSessionReset }: HomeProps) {
       }
 
       content = (
-        <AppLayout stepLabel="Çek Tamamlandı" stepCurrent={3} stepTotal={3}>
+        <AppLayout
+          stepLabel="Çek Tamamlandı"
+          stepCurrent={3}
+          stepTotal={3}
+          onMenuOpen={toggle}
+        >
           <CheckSummaryStep
             check={summaryCheck}
             checkIndex={getSummaryCheckIndex(summaryCheck, session.checks)}
@@ -123,7 +184,12 @@ export function Home({ onSessionReset }: HomeProps) {
 
     case 'batch-photo':
       content = (
-        <AppLayout stepLabel="Toplu Fotoğraf" stepCurrent={1} stepTotal={1}>
+        <AppLayout
+          stepLabel="Toplu Fotoğraf"
+          stepCurrent={1}
+          stepTotal={1}
+          onMenuOpen={toggle}
+        >
           <BatchPhotoStep
             checkCount={session.checks.length}
             onCapture={saveBatchPhoto}
@@ -134,10 +200,29 @@ export function Home({ onSessionReset }: HomeProps) {
 
     case 'session-summary':
       content = (
-        <main className="min-h-screen bg-slate-950 text-slate-100">
-          <div className="mx-auto w-full max-w-3xl px-4 py-5 sm:px-6 sm:py-8">
+        <main className="flex min-h-screen flex-col bg-white text-slate-900">
+          <header className="fixed inset-x-0 top-0 z-30 h-14 border-b border-[#DFDFDF] bg-white/95 backdrop-blur-sm">
+            <div className="mx-auto flex h-full w-full max-w-3xl items-center justify-between px-4 sm:px-6">
+              <button
+                type="button"
+                onClick={toggle}
+                className="flex h-10 w-10 flex-col items-center justify-center gap-1.5 rounded-md text-[#007A3D] transition-colors hover:text-[#018342]"
+                aria-label="Menüyü aç"
+              >
+                <span className="h-0.5 w-5 rounded bg-[#007A3D]" />
+                <span className="h-0.5 w-5 rounded bg-[#007A3D]" />
+                <span className="h-0.5 w-5 rounded bg-[#007A3D]" />
+              </button>
+              <p className="text-sm font-medium text-slate-900">Oturum Özeti</p>
+              <span className="w-10" />
+            </div>
+          </header>
+
+          <div className="mx-auto w-full max-w-3xl flex-1 px-4 pb-6 pt-20 sm:px-6 sm:pb-8">
             <SessionSummaryStep session={session} onReset={handleSessionReset} />
           </div>
+
+          <SiteFooter />
         </main>
       )
       break
@@ -146,7 +231,12 @@ export function Home({ onSessionReset }: HomeProps) {
       content = null
   }
 
-  return content
+  return (
+    <>
+      {content}
+      <SideMenu open={open} onClose={close} />
+    </>
+  )
 }
 
 export default Home
