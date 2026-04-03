@@ -13,7 +13,6 @@ export type CheckCaptureStep =
   | 'home-landing'
   | 'pre-start-info'
   | 'check-photo'
-  | 'qr-scan'
   | 'check-summary'
   | 'batch-photo'
   | 'session-summary'

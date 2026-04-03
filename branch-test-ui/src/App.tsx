@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import BordroTab from './components/BordroTab'
 import ChequeDebugTab from './components/ChequeDebugTab'
+import CustomerInviteTab from './components/CustomerInviteTab'
 import DashboardTab from './components/DashboardTab'
 import DocumentScanTab from './components/DocumentScanTab'
 import LogsTab from './components/LogsTab'
@@ -145,6 +146,7 @@ function App() {
         }
         documentScanContent={<DocumentScanTab />}
         chequeDebugContent={<ChequeDebugTab />}
+        customerLinkContent={<CustomerInviteTab />}
         logsContent={<LogsTab />}
       />
     </LogContext.Provider>
@@ -152,4 +154,3 @@ function App() {
 }
 
 export default App
-

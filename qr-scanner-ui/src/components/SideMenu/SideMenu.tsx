@@ -1,4 +1,4 @@
-import { Building2, ClipboardList, House, type LucideIcon } from 'lucide-react'
+import { ClipboardList, type LucideIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
@@ -39,9 +39,7 @@ const PUBLIC_LOGO_CANDIDATES = [
 ]
 
 const MENU_ITEMS: MenuItem[] = [
-  { icon: House, label: 'Ana Sayfa', path: '/home' },
-  { icon: ClipboardList, label: 'Bireysel Kredi', path: '/bireysel-kredi' },
-  { icon: Building2, label: 'Kurumsal Kredi', path: '/kurumsal-kredi' },
+  { icon: ClipboardList, label: 'Çek Tarama', path: '/home' }
 ]
 
 export function SideMenu({ open, onClose }: SideMenuProps) {
@@ -113,16 +111,6 @@ export function SideMenu({ open, onClose }: SideMenuProps) {
             ✕
           </button>
         </header>
-
-        <section className="flex items-center gap-3 border-b border-[#DFDFDF] px-6 py-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#007A3D] text-sm font-semibold text-white">
-            CS
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm text-[#4B4F54]">Şube Kullanıcısı</p>
-            <p className="text-xs text-[#A5A7AA]">Yetkili</p>
-          </div>
-        </section>
 
         <nav className="flex-1 px-3 py-4">
           <ul className="space-y-1.5">

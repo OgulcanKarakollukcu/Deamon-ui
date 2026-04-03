@@ -1,14 +1,34 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useCamera } from '../../hooks/useCamera'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEdgeDetection } from '../../hooks/useEdgeDetection'
+import {
+  captureFullFrame,
+  useImageProcessing,
+} from '../../hooks/useImageProcessing'
+import { useQrDecoder } from '../../hooks/useQrDecoder'
+import { useScannerCamera } from '../../hooks/useScannerCamera'
+import type { CaptureDraft, EnhancementMode, ProcessedCapture } from '../../types/scanner'
+import { createGuideCorners, quadEdgeLengths } from '../../utils/scanner/geometry'
+import AdjustScreen from './AdjustScreen'
+import ScannerView from './ScannerView'
+
+const DETECTION_WIDTH = 640
+const MIN_CAPTURE_EDGE_RATIO = 0.92
+
+type CaptureState = 'loading' | 'scanning' | 'adjusting' | 'preview' | 'error'
 
 export interface CameraCaptureProps {
-  onCapture: (dataUrl: string) => void
+  onCapture: (dataUrl: string, qrValue?: string) => void
   onError?: (error: string) => void
   instructionText?: string
   showOverlay?: boolean
+  qrRequired?: boolean
 }
 
-function captureErrorMessage(): string {
+function resolveCaptureErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+
   return 'Fotoğraf alınamadı. Lütfen tekrar deneyin.'
 }
 
@@ -17,148 +37,506 @@ export function CameraCapture({
   onError,
   instructionText,
   showOverlay = true,
+  qrRequired = true,
 }: CameraCaptureProps) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [captureError, setCaptureError] = useState<string | null>(null)
+  const documentMode = showOverlay
+  const shouldRequireQr = documentMode && qrRequired
 
-  const { ready, error: cameraError } = useCamera(videoRef)
+  const [captureState, setCaptureState] = useState<CaptureState>('loading')
+  const [captureDraft, setCaptureDraft] = useState<CaptureDraft | null>(null)
+  const [processedCapture, setProcessedCapture] = useState<ProcessedCapture | null>(null)
+  const [rawCaptureDataUrl, setRawCaptureDataUrl] = useState<string | null>(null)
+  const [captureError, setCaptureError] = useState<string | null>(null)
+  const [liveQrValue, setLiveQrValue] = useState<string | null>(null)
+
+  const capturePendingRef = useRef(false)
+  const localCornersRef = useRef(captureDraft?.corners ?? null)
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null)
+
+  const {
+    videoRef,
+    setVideoRef,
+    devices,
+    activeDeviceId,
+    switchCamera,
+    restartCamera,
+    error: cameraError,
+    isReady,
+    torchSupported,
+    torchEnabled,
+    torchBusy,
+    flashMode,
+    flashModeOptions,
+    applyFlashMode,
+    toggleTorch,
+  } = useScannerCamera()
+
+  const {
+    corners,
+    isDetecting,
+    isStable,
+    workerReady,
+    workerEngine,
+    reset: resetDetection,
+  } = useEdgeDetection(videoRef, isReady, documentMode)
+
+  const {
+    createCaptureDraft,
+    processCapturedFrame,
+    reprocessWithMode,
+    isProcessing,
+    enhancementMode,
+    setEnhancementMode,
+  } = useImageProcessing(videoRef)
+
+  const videoElement = videoRef.current
+  const videoWidth = videoElement?.videoWidth || 1920
+  const videoHeight = videoElement?.videoHeight || 1080
+  const detectionHeight = Math.round(DETECTION_WIDTH * (videoHeight / videoWidth))
+
+  const guideCorners = useMemo(
+    () => createGuideCorners(DETECTION_WIDTH, detectionHeight),
+    [detectionHeight],
+  )
+
+  const guideEdges = documentMode ? quadEdgeLengths(guideCorners) : null
+  const detectedEdges = documentMode && corners ? quadEdgeLengths(corners) : null
+
+  const isOrientationReady = true
+  const isCloseEnough = Boolean(
+    !documentMode ||
+      (detectedEdges &&
+        guideEdges &&
+        detectedEdges.top >= guideEdges.top * MIN_CAPTURE_EDGE_RATIO &&
+        detectedEdges.bottom >= guideEdges.bottom * MIN_CAPTURE_EDGE_RATIO &&
+        detectedEdges.left >= guideEdges.left * MIN_CAPTURE_EDGE_RATIO &&
+        detectedEdges.right >= guideEdges.right * MIN_CAPTURE_EDGE_RATIO),
+  )
+
+  const needsToMoveCloser =
+    documentMode && isOrientationReady && Boolean(corners) && !isCloseEnough
+
+  const orientationPrompt = null
+
+  const canCapture =
+    captureState === 'scanning' &&
+    (documentMode
+      ? isStable &&
+        !orientationPrompt &&
+        !needsToMoveCloser &&
+        (!shouldRequireQr || Boolean(liveQrValue))
+      : isReady)
+
+  const capturedPreviewDataUrl = processedCapture?.dataURL ?? rawCaptureDataUrl
+
+  useQrDecoder({
+    videoRef,
+    canvasRef: qrCanvasRef,
+    enabled:
+      shouldRequireQr &&
+      captureState === 'scanning' &&
+      isReady &&
+      liveQrValue === null,
+    onDetected: (value: string) => {
+      setLiveQrValue(value)
+      if (
+        typeof navigator !== 'undefined' &&
+        'vibrate' in navigator &&
+        typeof navigator.vibrate === 'function'
+      ) {
+        navigator.vibrate(160)
+      }
+    },
+  })
 
   useEffect(() => {
-    if (cameraError && onError) {
-      onError(cameraError)
+    if (captureState === 'loading') {
+      if (documentMode) {
+        if (isReady && workerReady) {
+          setCaptureState('scanning')
+        }
+        return
+      }
+
+      if (isReady) {
+        setCaptureState('scanning')
+      }
+    }
+  }, [captureState, documentMode, isReady, workerReady])
+
+  useEffect(() => {
+    if (!cameraError) {
+      return
+    }
+
+    setCaptureState('error')
+    setCaptureError(cameraError.message)
+    if (onError) {
+      onError(cameraError.message)
     }
   }, [cameraError, onError])
 
+  useEffect(() => {
+    if (corners) {
+      localCornersRef.current = corners
+    }
+  }, [corners])
+
+  useEffect(() => {
+    if (!documentMode || captureState !== 'scanning' || isOrientationReady) {
+      return
+    }
+
+    localCornersRef.current = null
+    resetDetection()
+  }, [captureState, documentMode, isOrientationReady, resetDetection])
+
+  useEffect(() => {
+    if (captureState !== 'scanning') {
+      capturePendingRef.current = false
+    }
+  }, [captureState])
+
   const handleCapture = useCallback((): void => {
-    const videoElement = videoRef.current
-    const canvasElement = canvasRef.current
+    if (!canCapture || capturePendingRef.current) {
+      return
+    }
 
-    if (!videoElement || !canvasElement) {
-      const errorMessage = 'Kamera görüntüsü henüz hazır değil.'
-      setCaptureError(errorMessage)
+    if (shouldRequireQr && !liveQrValue) {
+      const message = 'QR kod okunmadan çekim yapılamaz.'
+      setCaptureError(message)
       if (onError) {
-        onError(errorMessage)
+        onError(message)
       }
       return
     }
 
-    const width = videoElement.videoWidth
-    const height = videoElement.videoHeight
-
-    if (width <= 0 || height <= 0) {
-      const errorMessage = 'Kamera görüntüsü alınamadı. Lütfen tekrar deneyin.'
-      setCaptureError(errorMessage)
-      if (onError) {
-        onError(errorMessage)
-      }
-      return
-    }
-
-    const context = canvasElement.getContext('2d')
-    if (!context) {
-      const errorMessage = 'Fotoğraf işlenemedi. Lütfen tekrar deneyin.'
-      setCaptureError(errorMessage)
-      if (onError) {
-        onError(errorMessage)
-      }
-      return
-    }
+    capturePendingRef.current = true
+    setCaptureError(null)
 
     try {
-      canvasElement.width = width
-      canvasElement.height = height
-      context.drawImage(videoElement, 0, 0, width, height)
+      if (documentMode) {
+        const currentCorners = localCornersRef.current ?? guideCorners
+        localCornersRef.current = currentCorners
 
-      const dataUrl = canvasElement.toDataURL('image/jpeg', 0.85)
-      setCaptureError(null)
-      onCapture(dataUrl)
+        const draft = createCaptureDraft(
+          currentCorners,
+          DETECTION_WIDTH,
+          detectionHeight,
+        )
+
+        setCaptureDraft(draft)
+        setCaptureState('adjusting')
+        return
+      }
+
+      const currentVideo = videoRef.current
+      if (!currentVideo) {
+        throw new Error('Kamera görüntüsü henüz hazır değil.')
+      }
+
+      const dataUrl = captureFullFrame(currentVideo)
+      setRawCaptureDataUrl(dataUrl)
+      setProcessedCapture(null)
+      setCaptureState('preview')
     } catch (error: unknown) {
-      console.error('Capture error:', error)
-      const errorMessage = captureErrorMessage()
-      setCaptureError(errorMessage)
+      capturePendingRef.current = false
+      const message = resolveCaptureErrorMessage(error)
+      setCaptureError(message)
       if (onError) {
-        onError(errorMessage)
+        onError(message)
       }
     }
-  }, [onCapture, onError])
+  }, [
+    canCapture,
+    createCaptureDraft,
+    detectionHeight,
+    documentMode,
+    guideCorners,
+    liveQrValue,
+    onError,
+    shouldRequireQr,
+    videoRef,
+  ])
 
-  const visibleError = captureError ?? cameraError
+  const handleConfirmAdjustment = useCallback(
+    async (adjustedCorners: typeof guideCorners): Promise<void> => {
+      if (!captureDraft?.sourceCanvas) {
+        return
+      }
 
-  if (visibleError) {
+      try {
+        const result = await processCapturedFrame(
+          captureDraft.sourceCanvas,
+          adjustedCorners,
+        )
+
+        setProcessedCapture(result)
+        setRawCaptureDataUrl(null)
+        setCaptureDraft(null)
+        setCaptureState('preview')
+      } catch (error: unknown) {
+        const message = resolveCaptureErrorMessage(error)
+        setCaptureError(message)
+        if (onError) {
+          onError(message)
+        }
+      }
+    },
+    [captureDraft, onError, processCapturedFrame],
+  )
+
+  const handleRetake = useCallback((): void => {
+    capturePendingRef.current = false
+    setCaptureDraft(null)
+    setProcessedCapture(null)
+    setRawCaptureDataUrl(null)
+    setCaptureError(null)
+    setLiveQrValue(null)
+    localCornersRef.current = null
+    resetDetection()
+    setCaptureState('scanning')
+  }, [resetDetection])
+
+  const handleUseCapturedPhoto = useCallback((): void => {
+    if (!capturedPreviewDataUrl) {
+      return
+    }
+
+    if (shouldRequireQr && !liveQrValue) {
+      const message = 'QR doğrulanamadı. Lütfen tekrar çekin.'
+      setCaptureError(message)
+      if (onError) {
+        onError(message)
+      }
+      return
+    }
+
+    onCapture(capturedPreviewDataUrl, liveQrValue ?? undefined)
+  }, [capturedPreviewDataUrl, liveQrValue, onCapture, onError, shouldRequireQr])
+
+  const handleReprocess = useCallback(
+    async (mode: EnhancementMode): Promise<void> => {
+      setEnhancementMode(mode)
+
+      try {
+        const result = await reprocessWithMode(mode)
+        if (result) {
+          setProcessedCapture(result)
+        }
+      } catch (error: unknown) {
+        const message = resolveCaptureErrorMessage(error)
+        setCaptureError(message)
+        if (onError) {
+          onError(message)
+        }
+      }
+    },
+    [onError, reprocessWithMode, setEnhancementMode],
+  )
+
+  const handleRetryCamera = useCallback((): void => {
+    setCaptureError(null)
+    setCaptureState('loading')
+    void restartCamera().catch((error: unknown) => {
+      const message = resolveCaptureErrorMessage(error)
+      setCaptureError(message)
+      if (onError) {
+        onError(message)
+      }
+      setCaptureState('error')
+    })
+  }, [onError, restartCamera])
+
+  if (captureState === 'error') {
     return (
-      <section className="flex h-[calc(100vh-3.5rem)] w-full items-center justify-center bg-white px-6">
-        <div className="space-y-3 text-center">
-          <p className="text-3xl text-red-500">⚠</p>
-          <p className="text-sm font-medium text-red-700">{visibleError}</p>
+      <section className="flex h-[100dvh] w-full items-center justify-center bg-black px-6">
+        <div className="max-w-sm space-y-4 text-center">
+          <p className="text-3xl">📷</p>
+          <h2 className="text-lg font-semibold text-white">Kamera Hatası</h2>
+          <p className="text-sm leading-relaxed text-white/70">
+            {captureError || cameraError?.message || 'Kamera başlatılamadı.'}
+          </p>
+          <button
+            type="button"
+            className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-500"
+            onClick={handleRetryCamera}
+          >
+            Tekrar Dene
+          </button>
+        </div>
+      </section>
+    )
+  }
+
+  if (captureState === 'loading') {
+    return (
+      <section className="relative h-[100dvh] w-full overflow-hidden bg-black">
+        <video
+          ref={setVideoRef}
+          autoPlay
+          playsInline
+          muted
+          aria-hidden="true"
+          className="pointer-events-none fixed left-0 top-0 h-px w-px opacity-0"
+        />
+
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-emerald-500" />
+          <p className="text-lg font-semibold text-white">
+            {!isReady && !workerReady && documentMode
+              ? 'Kamera ve tarayıcı başlatılıyor...'
+              : !isReady
+                ? 'Kamera başlatılıyor...'
+                : 'Tarayıcı motoru hazırlanıyor...'}
+          </p>
+          {documentMode && workerEngine ? (
+            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/75">
+              Motor: {workerEngine === 'opencv' ? 'OpenCV.js' : 'Yerel Fallback'}
+            </span>
+          ) : null}
+        </div>
+      </section>
+    )
+  }
+
+  if (captureState === 'adjusting' && captureDraft) {
+    return (
+      <section className="h-[100dvh] w-full overflow-hidden bg-black">
+        <AdjustScreen
+          imageSrc={captureDraft.previewDataURL}
+          sourceWidth={captureDraft.width}
+          sourceHeight={captureDraft.height}
+          initialCorners={captureDraft.corners}
+          isProcessing={isProcessing}
+          onRetake={handleRetake}
+          onConfirm={(cornersValue) => {
+            void handleConfirmAdjustment(cornersValue)
+          }}
+        />
+      </section>
+    )
+  }
+
+  if (captureState === 'preview' && capturedPreviewDataUrl) {
+    const captureHasQr = !shouldRequireQr || Boolean(liveQrValue)
+
+    return (
+      <section className="flex h-[100dvh] w-full flex-col overflow-hidden bg-black text-white">
+        <div className="relative flex-1 overflow-hidden bg-neutral-950">
+          <img
+            src={capturedPreviewDataUrl}
+            alt="Yakalanan çek önizleme"
+            className="h-full w-full object-contain"
+          />
+
+          {isProcessing ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/65">
+              <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/10 border-t-emerald-500" />
+              <p className="text-sm text-white/70">Görüntü güncelleniyor...</p>
+            </div>
+          ) : null}
+        </div>
+
+        {documentMode ? (
+          <div className="border-t border-white/10 bg-black/80 px-4 py-3">
+            <div className="grid grid-cols-3 gap-2">
+              {(['color', 'enhanced', 'bw'] as EnhancementMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={`min-h-[44px] rounded-xl text-sm font-medium transition-colors disabled:opacity-40 ${
+                    enhancementMode === mode
+                      ? 'bg-emerald-600 text-white'
+                      : 'border border-white/12 bg-white/8 text-white/70 hover:bg-white/15'
+                  }`}
+                  onClick={() => {
+                    void handleReprocess(mode)
+                  }}
+                  disabled={isProcessing}
+                >
+                  {mode === 'color'
+                    ? 'Renkli'
+                    : mode === 'enhanced'
+                      ? 'Gelişmiş'
+                      : 'S/B'}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="border-t border-white/10 bg-black/80 px-4 py-3">
+          {!captureHasQr ? (
+            <p className="mb-3 rounded-lg border border-amber-300/50 bg-amber-500/15 px-3 py-2 text-center text-sm text-amber-100">
+              QR doğrulanamadı. Lütfen tekrar çekin.
+            </p>
+          ) : null}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              className="min-h-[48px] rounded-xl border border-white/12 bg-white/10 font-semibold text-white transition-transform active:scale-95"
+              onClick={handleRetake}
+            >
+              Tekrar Çek
+            </button>
+            <button
+              type="button"
+              className="min-h-[48px] rounded-xl bg-emerald-600 font-semibold text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+              onClick={handleUseCapturedPhoto}
+              disabled={!captureHasQr}
+            >
+              Bu Fotoğrafı Kullan
+            </button>
+          </div>
         </div>
       </section>
     )
   }
 
   return (
-    <section className="relative h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-black">
-      <div className="relative h-full w-full overflow-hidden bg-black">
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="h-full w-full object-cover"
-        />
+    <section className="h-[100dvh] w-full overflow-hidden bg-black">
+      <ScannerView
+        videoRef={setVideoRef}
+        devices={devices}
+        activeDeviceId={activeDeviceId}
+        onSwitchCamera={switchCamera}
+        torchSupported={torchSupported}
+        torchEnabled={torchEnabled}
+        torchBusy={torchBusy}
+        flashMode={flashMode}
+        flashModeOptions={flashModeOptions}
+        onApplyFlashMode={(mode) => {
+          void applyFlashMode(mode)
+        }}
+        onToggleTorch={() => {
+          void toggleTorch()
+        }}
+        corners={corners}
+        isDetecting={isDetecting}
+        isStable={isStable}
+        workerEngine={workerEngine}
+        canCapture={canCapture}
+        orientationPrompt={orientationPrompt}
+        showRotationGuide={Boolean(documentMode && !isOrientationReady)}
+        needsToMoveCloser={Boolean(needsToMoveCloser)}
+        showGuideOverlay={documentMode}
+        instructionText={instructionText}
+        qrRequired={shouldRequireQr}
+        qrValue={liveQrValue}
+        onCapture={handleCapture}
+        onCornersChange={(nextCorners) => {
+          localCornersRef.current = nextCorners
+        }}
+      />
 
-        {!ready ? (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black">
-            <span className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-100/30 border-t-emerald-200" />
-            <p className="mt-4 text-sm text-emerald-100">Kamera açılıyor...</p>
-          </div>
-        ) : null}
+      <canvas ref={qrCanvasRef} className="hidden" aria-hidden="true" />
 
-        {instructionText ? (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 mt-4 px-4">
-            <p className="mx-auto max-w-xl rounded-xl bg-white/85 px-4 py-2 text-center text-sm font-medium text-emerald-900 backdrop-blur-sm">
-              {instructionText}
-            </p>
-          </div>
-        ) : null}
-
-        {showOverlay ? (
-          <div className="pointer-events-none absolute inset-0">
-            <div className="absolute inset-x-0 top-0 h-[30%] bg-black/35" />
-            <div className="absolute inset-x-0 bottom-0 h-[30%] bg-black/35" />
-            <div className="absolute bottom-[30%] left-0 top-[30%] w-[6%] bg-black/35" />
-            <div className="absolute bottom-[30%] right-0 top-[30%] w-[6%] bg-black/35" />
-
-            <div className="absolute left-1/2 top-1/2 h-[40%] w-[88%] -translate-x-1/2 -translate-y-1/2 rounded-lg border-2 border-white/85 bg-[rgba(22,163,74,0.08)]">
-              <span className="absolute -left-0.5 -top-0.5 h-4 w-4 border-l-[3px] border-t-[3px] border-[#16A34A]" />
-              <span className="absolute -right-0.5 -top-0.5 h-4 w-4 border-r-[3px] border-t-[3px] border-[#16A34A]" />
-              <span className="absolute -bottom-0.5 -left-0.5 h-4 w-4 border-b-[3px] border-l-[3px] border-[#16A34A]" />
-              <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 border-b-[3px] border-r-[3px] border-[#16A34A]" />
-
-              <p
-                className="absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap text-xs font-medium text-[#BBF7D0]"
-                style={{ textShadow: '0 1px 3px rgba(0, 0, 0, 0.9)' }}
-              >
-                Çeki çerçeveye hizalayın
-              </p>
-            </div>
-          </div>
-        ) : null}
-
-        <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
-
-        <div className="absolute inset-x-0 bottom-0 z-20 mb-8 flex justify-center">
-          <button
-            type="button"
-            onClick={handleCapture}
-            disabled={!ready}
-            aria-label="Fotoğraf çek"
-            className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 border-[#CDE7D6] bg-white/15 transition-transform duration-100 active:scale-90 disabled:opacity-40"
-          >
-            <span className="h-[56px] w-[56px] rounded-full bg-[#EAF4EE]" />
-          </button>
+      {captureError ? (
+        <div className="absolute left-4 right-4 top-4 z-30 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+          {captureError}
         </div>
-      </div>
+      ) : null}
     </section>
   )
 }

@@ -1,6 +1,18 @@
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
 import clsx from 'clsx'
-import { Binary, Database, FileText, FileUp, History, LayoutDashboard, Menu, Moon, Server, Sun } from 'lucide-react'
+import {
+  Binary,
+  Database,
+  FileText,
+  FileUp,
+  History,
+  LayoutDashboard,
+  Link as LinkIcon,
+  Menu,
+  Moon,
+  Server,
+  Sun,
+} from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { Tab as AppTab } from '../types'
 
@@ -15,6 +27,7 @@ type TabLayoutProps = {
   bordroContent?: ReactNode
   documentScanContent?: ReactNode
   chequeDebugContent?: ReactNode
+  customerLinkContent?: ReactNode
   logsContent?: ReactNode
   contentDisabled?: boolean
   contentOverlay?: ReactNode
@@ -25,6 +38,7 @@ const tabs: Array<{ id: AppTab; label: string; icon: typeof LayoutDashboard }> =
   { id: 'bordro', label: 'Bordro', icon: FileText },
   { id: 'document-scan', label: 'Dokuman Tara', icon: FileUp },
   { id: 'cheque-debug', label: 'Cheque Debug', icon: Binary },
+  { id: 'customer-link', label: 'Musteri Link', icon: LinkIcon },
   { id: 'logs', label: 'Logs', icon: History },
 ]
 
@@ -33,6 +47,7 @@ const tabTitleMap: Record<AppTab, string> = {
   bordro: 'Bordro',
   'document-scan': 'Dokuman Tarama',
   'cheque-debug': 'Cheque Debug',
+  'customer-link': 'Musteri Link Is Akisi',
   logs: 'Log Kayitlari',
 }
 
@@ -47,6 +62,7 @@ export function TabLayout({
   bordroContent,
   documentScanContent,
   chequeDebugContent,
+  customerLinkContent,
   logsContent,
   contentDisabled = false,
   contentOverlay,
@@ -232,6 +248,9 @@ export function TabLayout({
                   </TabPanel>
                   <TabPanel className="h-full min-h-0 overflow-auto">
                     {chequeDebugContent ?? <div>Cheque debug placeholder</div>}
+                  </TabPanel>
+                  <TabPanel className="h-full min-h-0 overflow-auto">
+                    {customerLinkContent ?? <div>Customer link placeholder</div>}
                   </TabPanel>
                   <TabPanel className="h-full min-h-0 overflow-auto">
                     {logsContent ?? <div>Logs placeholder</div>}

@@ -5,7 +5,6 @@ import {
   BatchPhotoStep,
   CheckPhotoStep,
   CheckSummaryStep,
-  QrScanStep,
   SessionSummaryStep,
   StartConsentStep,
 } from '../components/CheckCapture'
@@ -54,7 +53,6 @@ export function Home() {
     proceedToCheckPhoto,
     goToHomeLanding,
     saveCheckPhoto,
-    saveQrValue,
     addAnotherCheck,
     goToBatchPhoto,
     saveBatchPhoto,
@@ -76,7 +74,7 @@ export function Home() {
     case 'home-landing':
       content = (
         <AppLayout
-          stepLabel="Ana Sayfa"
+          stepLabel="Çek Tarama"
           stepCurrent={1}
           stepTotal={1}
           onMenuOpen={toggle}
@@ -89,14 +87,9 @@ export function Home() {
 
     case 'check-photo':
       content = (
-        <AppLayout
-          stepLabel="Fotoğraf Çek"
-          stepCurrent={1}
-          stepTotal={3}
-          onMenuOpen={toggle}
-        >
+        <main className="h-[100dvh] w-full overflow-hidden bg-black">
           <CheckPhotoStep onCapture={saveCheckPhoto} />
-        </AppLayout>
+        </main>
       )
       break
 
@@ -117,22 +110,6 @@ export function Home() {
       )
       break
 
-    case 'qr-scan':
-      content = (
-        <AppLayout
-          stepLabel="QR Tara"
-          stepCurrent={2}
-          stepTotal={3}
-          onMenuOpen={toggle}
-        >
-          <QrScanStep
-            checkPhoto={currentCheck.photoDataUrl ?? ''}
-            onScanned={saveQrValue}
-          />
-        </AppLayout>
-      )
-      break
-
     case 'check-summary': {
       const summaryCheck = resolveSummaryCheck(currentCheck, session.checks)
 
@@ -140,8 +117,8 @@ export function Home() {
         content = (
           <AppLayout
             stepLabel="Çek Tamamlandı"
-            stepCurrent={3}
-            stepTotal={3}
+            stepCurrent={2}
+            stepTotal={2}
             onMenuOpen={toggle}
           >
             <section className="space-y-4 rounded-2xl border border-red-200 bg-red-50 p-5">
@@ -167,13 +144,14 @@ export function Home() {
       content = (
         <AppLayout
           stepLabel="Çek Tamamlandı"
-          stepCurrent={3}
-          stepTotal={3}
+          stepCurrent={2}
+          stepTotal={2}
           onMenuOpen={toggle}
         >
           <CheckSummaryStep
             check={summaryCheck}
             checkIndex={getSummaryCheckIndex(summaryCheck, session.checks)}
+            checks={session.checks}
             onAddAnother={addAnotherCheck}
             onFinish={goToBatchPhoto}
           />
@@ -184,17 +162,12 @@ export function Home() {
 
     case 'batch-photo':
       content = (
-        <AppLayout
-          stepLabel="Toplu Fotoğraf"
-          stepCurrent={1}
-          stepTotal={1}
-          onMenuOpen={toggle}
-        >
+        <main className="h-[100dvh] w-full overflow-hidden bg-black">
           <BatchPhotoStep
             checkCount={session.checks.length}
             onCapture={saveBatchPhoto}
           />
-        </AppLayout>
+        </main>
       )
       break
 

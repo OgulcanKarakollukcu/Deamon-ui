@@ -1,7 +1,7 @@
 import { CameraCapture } from '../CameraCapture'
 
 export interface CheckPhotoStepProps {
-  onCapture: (dataUrl: string) => void
+  onCapture: (dataUrl: string, qrValue?: string) => void
 }
 
 export function CheckPhotoStep({ onCapture }: CheckPhotoStepProps) {
@@ -9,6 +9,7 @@ export function CheckPhotoStep({ onCapture }: CheckPhotoStepProps) {
     <CameraCapture
       onCapture={onCapture}
       instructionText="Çeki kameraya gösterin ve fotoğrafı çekin"
+      qrRequired
     />
   )
 }

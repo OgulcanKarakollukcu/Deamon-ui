@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useCamera } from '../../hooks/useCamera'
 import { useQrDecoder } from '../../hooks/useQrDecoder'
 
@@ -12,7 +12,21 @@ export function QrScanner({ onResult, onError }: QrScannerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [detected, setDetected] = useState<string | null>(null)
 
-  const { ready, error } = useCamera(videoRef)
+  const {
+    ready,
+    error,
+    controls: {
+      torchSupported,
+      torchEnabled,
+      setTorchEnabled,
+      zoomSupported,
+      zoom,
+      minZoom,
+      maxZoom,
+      zoomStep,
+      setZoom,
+    },
+  } = useCamera(videoRef)
 
   const handleDetected = useCallback(
     (value: string): void => {
@@ -46,6 +60,17 @@ export function QrScanner({ onResult, onError }: QrScannerProps) {
   const handleReset = useCallback((): void => {
     setDetected(null)
   }, [])
+
+  const handleTorchToggle = useCallback((): void => {
+    void setTorchEnabled(!torchEnabled)
+  }, [setTorchEnabled, torchEnabled])
+
+  const handleZoomChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>): void => {
+      void setZoom(Number(event.target.value))
+    },
+    [setZoom],
+  )
 
   const overlayBorderClass = detected
     ? 'border-[#22C55E] shadow-[0_0_0_1px_rgba(34,197,94,0.7),0_0_26px_rgba(34,197,94,0.45)]'
@@ -101,6 +126,39 @@ export function QrScanner({ onResult, onError }: QrScannerProps) {
       </div>
 
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-white/95 via-white/70 to-transparent px-5 pb-5 pt-14">
+        {ready && (torchSupported || zoomSupported) ? (
+          <div className="mb-3 flex items-center gap-3 rounded-2xl bg-black/45 px-3 py-2 backdrop-blur-sm">
+            {torchSupported ? (
+              <button
+                type="button"
+                onClick={handleTorchToggle}
+                className={`h-9 rounded-xl px-3 text-xs font-semibold transition-colors ${
+                  torchEnabled
+                    ? 'bg-[#007A3D] text-white hover:bg-[#018342]'
+                    : 'bg-white/90 text-[#007A3D] hover:bg-white'
+                }`}
+              >
+                {torchEnabled ? 'Flash Açık' : 'Flash Aç'}
+              </button>
+            ) : null}
+
+            {zoomSupported ? (
+              <label className="flex min-w-0 flex-1 items-center gap-2 text-xs text-white">
+                <span className="shrink-0 font-semibold">Zoom</span>
+                <input
+                  type="range"
+                  min={minZoom}
+                  max={maxZoom}
+                  step={zoomStep}
+                  value={zoom}
+                  onChange={handleZoomChange}
+                  className="w-full accent-[#7DB900]"
+                />
+              </label>
+            ) : null}
+          </div>
+        ) : null}
+
         {detected ? (
           <div className="space-y-3">
             <p className="text-sm font-medium text-emerald-700">Kod algılandı</p>

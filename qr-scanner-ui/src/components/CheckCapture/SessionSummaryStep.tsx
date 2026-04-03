@@ -3,9 +3,24 @@ import type { CheckSession } from '../../types/check'
 export interface SessionSummaryStepProps {
   session: CheckSession
   onReset: () => void
+  onSubmit?: () => void
+  isSubmitting?: boolean
+  submitSuccess?: boolean
+  submitError?: string | null
 }
 
-export function SessionSummaryStep({ session, onReset }: SessionSummaryStepProps) {
+export function SessionSummaryStep({
+  session,
+  onReset,
+  onSubmit,
+  isSubmitting = false,
+  submitSuccess = false,
+  submitError = null,
+}: SessionSummaryStepProps) {
+  const hasSubmitAction = onSubmit !== undefined
+  const submitButtonDisabled =
+    isSubmitting || submitSuccess || session.checks.length === 0 || !session.batchPhotoDataUrl
+
   return (
     <section className="-mx-4 -my-5 flex min-h-screen flex-col bg-white sm:-mx-6 sm:-my-8">
       <header className="border-b border-emerald-100 bg-emerald-50/70 px-6 py-4">
@@ -67,12 +82,45 @@ export function SessionSummaryStep({ session, onReset }: SessionSummaryStepProps
       </div>
 
       <div className="sticky bottom-0 border-t border-emerald-100 bg-white px-6 py-4">
+        {submitError ? (
+          <p className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {submitError}
+          </p>
+        ) : null}
+
+        {submitSuccess ? (
+          <p className="mb-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            Çekler ve metadata şubeye iletildi.
+          </p>
+        ) : null}
+
+        {hasSubmitAction ? (
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={submitButtonDisabled}
+            className="mb-2 h-12 w-full rounded-2xl bg-[#007A3D] text-sm font-semibold text-white transition-colors hover:bg-[#018342] disabled:cursor-not-allowed disabled:bg-[#A5A7AA]"
+          >
+            {isSubmitting ? 'Gönderiliyor...' : submitSuccess ? 'Gönderim Tamamlandı' : 'Çekleri Gönder'}
+          </button>
+        ) : null}
+
+        {hasSubmitAction && !session.batchPhotoDataUrl ? (
+          <p className="mb-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            Gonderim icin toplu fotograf gereklidir.
+          </p>
+        ) : null}
+
         <button
           type="button"
           onClick={onReset}
-          className="h-12 w-full rounded-2xl bg-[#007A3D] text-sm font-semibold text-white transition-colors hover:bg-[#018342]"
+          className={`h-12 w-full rounded-2xl text-sm font-semibold transition-colors ${
+            hasSubmitAction
+              ? 'border border-[#D6E5DC] bg-white text-[#007A3D] hover:bg-[#F3F8F5]'
+              : 'bg-[#007A3D] text-white hover:bg-[#018342]'
+          }`}
         >
-          Yeni Oturum Başlat
+          {hasSubmitAction ? 'Oturumu Temizle' : 'Yeni Oturum Başlat'}
         </button>
       </div>
     </section>

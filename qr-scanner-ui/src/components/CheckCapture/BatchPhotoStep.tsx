@@ -11,6 +11,7 @@ export function BatchPhotoStep({ checkCount, onCapture }: BatchPhotoStepProps) {
       onCapture={onCapture}
       instructionText={`${checkCount} çeki yan yana sıralayın ve fotoğrafı çekin`}
       showOverlay={false}
+      qrRequired={false}
     />
   )
 }

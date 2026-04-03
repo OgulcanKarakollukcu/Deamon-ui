@@ -217,5 +217,49 @@ export type LogEntry = {
   msg: string
 }
 
-export type Tab = 'dashboard' | 'bordro' | 'document-scan' | 'cheque-debug' | 'logs'
+export type CustomerScanInviteStatus = 'pending' | 'claimed' | 'submitted' | 'expired'
 
+export type CustomerScanInviteCreateRequest = {
+  customer_national_id: string
+  customer_email: string
+}
+
+export type CustomerScanInviteCreateResponse = {
+  invite_id: string
+  one_time_link: string
+  expires_at: string
+  email_dispatched: boolean
+}
+
+export type CustomerScanInviteSummary = {
+  invite_id: string
+  status: CustomerScanInviteStatus
+  customer_national_id: string
+  customer_email: string
+  check_count: number
+  created_at: string
+  expires_at: string
+  claimed_at: string | null
+  submitted_at: string | null
+}
+
+export type CustomerSubmittedCheck = {
+  sequence_no: number
+  qr_value: string
+  image_data_url: string
+  captured_at: string
+}
+
+export type CustomerScanInviteDetail = {
+  invite: CustomerScanInviteSummary
+  batch_image_data_url: string | null
+  checks: CustomerSubmittedCheck[]
+}
+
+export type Tab =
+  | 'dashboard'
+  | 'bordro'
+  | 'document-scan'
+  | 'cheque-debug'
+  | 'customer-link'
+  | 'logs'
