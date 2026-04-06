@@ -6,6 +6,7 @@ export interface CheckSummaryStepProps {
   checkIndex: number
   checks: CapturedCheck[]
   onAddAnother: () => void
+  onRetakeCheck?: (checkId: string) => void
   onFinish: () => void
 }
 
@@ -14,6 +15,7 @@ export function CheckSummaryStep({
   checkIndex,
   checks,
   onAddAnother,
+  onRetakeCheck,
   onFinish,
 }: CheckSummaryStepProps) {
   const displayChecks = useMemo(() => {
@@ -38,9 +40,10 @@ export function CheckSummaryStep({
     1,
     displayChecks.findIndex((item) => item.id === selectedCheck.id) + 1 || checkIndex,
   )
+  const canRetake = onRetakeCheck !== undefined
 
   return (
-    <section className="-mx-4 -mt-14 flex h-[calc(100vh-3.5rem)] flex-col bg-white px-6 sm:-mx-6">
+    <section className="-mx-4 flex min-h-[calc(100vh-3.5rem)] flex-col bg-white px-6 sm:-mx-6">
       <div className="mx-auto mt-8 mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-green-500/40 bg-green-500/20">
         <span className="text-2xl text-green-400">✓</span>
       </div>
@@ -101,6 +104,16 @@ export function CheckSummaryStep({
               {selectedCheck.qrValue}
             </p>
           </div>
+
+          {canRetake ? (
+            <button
+              type="button"
+              onClick={() => onRetakeCheck?.(selectedCheck.id)}
+              className="mt-3 h-11 w-full rounded-xl border border-red-200 bg-red-50 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100"
+            >
+              Bu Çeki Sil ve Tekrar Çek
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -117,7 +130,7 @@ export function CheckSummaryStep({
           onClick={onFinish}
           className="mt-3 h-12 w-full rounded-2xl border border-[#D6E5DC] bg-white text-sm font-semibold text-[#007A3D] transition-colors hover:bg-[#F3F8F5]"
         >
-          Toplu Fotoğraf Çek
+          Oturum Özetine Geç
         </button>
       </div>
     </section>

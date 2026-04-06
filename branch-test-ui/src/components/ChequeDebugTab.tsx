@@ -89,14 +89,14 @@ export default function ChequeDebugTab() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950/40">
+      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-neutral-900 dark:bg-neutral-950/40">
         <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-slate-900 p-2 text-white dark:bg-slate-100 dark:text-slate-900">
+          <div className="rounded-xl bg-slate-900 p-2 text-white dark:bg-neutral-100 dark:text-neutral-900">
             <Upload className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Cheque Debug</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-neutral-100">Cheque Debug</h3>
+            <p className="text-sm text-slate-500 dark:text-neutral-400">
               Tek bir image yukle, branch tarafinda full-image MICR ve QR analizi calissin.
             </p>
           </div>
@@ -104,7 +104,7 @@ export default function ChequeDebugTab() {
 
         <div className="mt-5 space-y-4">
           <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Image dosyasi</span>
+            <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-neutral-200">Image dosyasi</span>
             <input
               type="file"
               accept="image/png,image/jpeg,image/bmp,image/tiff,image/tif"
@@ -114,12 +114,12 @@ export default function ChequeDebugTab() {
                 setResult(null)
                 setErrorMessage(null)
               }}
-              className="block w-full rounded-xl border border-dashed border-slate-300 bg-white px-3 py-3 text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:file:bg-slate-100 dark:file:text-slate-900"
+              className="block w-full rounded-xl border border-dashed border-slate-300 bg-white px-3 py-3 text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:file:bg-neutral-100 dark:file:text-neutral-900"
             />
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">DPI</span>
+            <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-neutral-200">DPI</span>
             <input
               type="number"
               min={1}
@@ -128,13 +128,13 @@ export default function ChequeDebugTab() {
               onChange={(event) => {
                 setDpi(event.target.value)
               }}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none ring-0 transition focus:border-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none ring-0 transition focus:border-slate-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
             />
           </label>
 
           {selectedFile ? (
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-              <div className="font-medium text-slate-900 dark:text-slate-100">{selectedFile.name}</div>
+            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 dark:border-neutral-900 dark:bg-neutral-950 dark:text-neutral-300">
+              <div className="font-medium text-slate-900 dark:text-neutral-100">{selectedFile.name}</div>
               <div className="mt-1">{formatBytes(selectedFile.size)}</div>
             </div>
           ) : null}
@@ -145,7 +145,7 @@ export default function ChequeDebugTab() {
               void handleAnalyze()
             }}
             disabled={selectedFile === null || isAnalyzing}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
           >
             <Search className={`h-4 w-4 ${isAnalyzing ? 'animate-pulse' : ''}`} />
             {isAnalyzing ? 'Analiz Calisiyor...' : 'MICR ve QR Oku'}
@@ -160,9 +160,9 @@ export default function ChequeDebugTab() {
       </section>
 
       <section className="grid gap-6">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/40">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Preview</h3>
-          <div className="mt-4 flex min-h-[320px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-neutral-900 dark:bg-neutral-950/40">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-neutral-100">Preview</h3>
+          <div className="mt-4 flex min-h-[320px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 dark:border-neutral-800 dark:bg-neutral-950">
             {previewUrl ? (
               <img
                 src={previewUrl}
@@ -170,19 +170,19 @@ export default function ChequeDebugTab() {
                 className="max-h-[70vh] max-w-full rounded-xl object-contain shadow-lg"
               />
             ) : (
-              <p className="text-sm text-slate-500 dark:text-slate-400">Henuz image secilmedi.</p>
+              <p className="text-sm text-slate-500 dark:text-neutral-400">Henuz image secilmedi.</p>
             )}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/40">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Analiz Sonucu</h3>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-neutral-900 dark:bg-neutral-950/40">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-neutral-100">Analiz Sonucu</h3>
           {result ? (
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">MICR</div>
-                <div className="mt-2 break-all font-mono text-sm text-slate-900 dark:text-slate-100">{normalizedMicr || '-'}</div>
-                <dl className="mt-3 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-900 dark:bg-neutral-950">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">MICR</div>
+                <div className="mt-2 break-all font-mono text-sm text-slate-900 dark:text-neutral-100">{normalizedMicr || '-'}</div>
+                <dl className="mt-3 space-y-1 text-sm text-slate-700 dark:text-neutral-200">
                   <div className="flex items-start justify-between gap-3">
                     <dt>Çek Seri No</dt>
                     <dd className="font-mono">{parsedMicrFields?.chequeSerialNo ?? '-'}</dd>
@@ -201,10 +201,10 @@ export default function ChequeDebugTab() {
                   </div>
                 </dl>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">QR</div>
-                <div className="mt-2 break-all font-mono text-sm text-slate-900 dark:text-slate-100">{result.qr_data || '-'}</div>
-                <dl className="mt-3 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-900 dark:bg-neutral-950">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">QR</div>
+                <div className="mt-2 break-all font-mono text-sm text-slate-900 dark:text-neutral-100">{result.qr_data || '-'}</div>
+                <dl className="mt-3 space-y-1 text-sm text-slate-700 dark:text-neutral-200">
                   <div className="flex items-start justify-between gap-3">
                     <dt>Çek Seri No</dt>
                     <dd className="font-mono">{parsedQrFields?.chequeSerialNo ?? '-'}</dd>
@@ -231,12 +231,12 @@ export default function ChequeDebugTab() {
                   </div>
                 </dl>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-900 dark:bg-neutral-950">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                   <Clock3 className="h-4 w-4" />
                   Sureler
                 </div>
-                <dl className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
+                <dl className="mt-3 space-y-2 text-sm text-slate-700 dark:text-neutral-200">
                   <div className="flex items-center justify-between gap-3">
                     <dt>MICR</dt>
                     <dd>{result.micr_ms.toString()} ms</dd>
@@ -245,18 +245,18 @@ export default function ChequeDebugTab() {
                     <dt>QR</dt>
                     <dd>{result.qr_ms.toString()} ms</dd>
                   </div>
-                  <div className="flex items-center justify-between gap-3 font-semibold text-slate-900 dark:text-slate-100">
+                  <div className="flex items-center justify-between gap-3 font-semibold text-slate-900 dark:text-neutral-100">
                     <dt>Toplam</dt>
                     <dd>{result.total_ms.toString()} ms</dd>
                   </div>
                 </dl>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-900 dark:bg-neutral-950">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                   <Binary className="h-4 w-4" />
                   Meta
                 </div>
-                <dl className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
+                <dl className="mt-3 space-y-2 text-sm text-slate-700 dark:text-neutral-200">
                   <div className="flex items-center justify-between gap-3">
                     <dt>DPI</dt>
                     <dd>{result.effective_dpi.toString()}</dd>
@@ -273,7 +273,7 @@ export default function ChequeDebugTab() {
               </div>
             </div>
           ) : (
-            <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+            <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-sm text-slate-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400">
               Bir image secip analizi baslatinca MICR, QR ve sure metrikleri burada gorunecek.
             </div>
           )}

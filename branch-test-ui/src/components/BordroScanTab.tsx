@@ -97,7 +97,7 @@ const SCANNER_STATUS_META: Record<
   unavailable: {
     label: 'Hazir Degil',
     badgeClassName:
-      'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
+      'border-slate-300 bg-slate-100 text-slate-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300',
   },
 }
 
@@ -200,7 +200,7 @@ function getSettingStatus(verified: boolean, matches: boolean): { label: string;
     return {
       label: 'Dogrulanamadi',
       badgeClassName:
-        'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
+        'border-slate-300 bg-slate-100 text-slate-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300',
     }
   }
 
@@ -845,18 +845,18 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
 
   return (
     <div className="space-y-6">
-      <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-neutral-900 dark:bg-neutral-950/60">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
               Adim 1
             </p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+            <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-neutral-100">
               Scanner Secimi ve Rezervasyon
             </h2>
-            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+            <p className="mt-1 text-xs text-slate-600 dark:text-neutral-400">
               Session ID:{' '}
-              <span className="font-mono text-slate-700 dark:text-slate-300">{sessionId}</span>
+              <span className="font-mono text-slate-700 dark:text-neutral-300">{sessionId}</span>
             </p>
           </div>
 
@@ -866,7 +866,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
               void handleListScanners()
             }}
             disabled={isListing || isReserving || isReleasing}
-            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800"
           >
             {isListing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             {isListing ? 'Yenileniyor...' : 'Tarayicilari Yenile'}
@@ -906,16 +906,16 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                   className={`rounded-lg border p-3 transition ${
                     isSelected
                       ? 'border-amber-300 bg-amber-50/70 dark:border-amber-500/40 dark:bg-amber-500/10'
-                      : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/30'
+                      : 'border-slate-200 bg-white dark:border-neutral-900 dark:bg-neutral-950/30'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1">
-                      <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        <ScanLine className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                      <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-neutral-100">
+                        <ScanLine className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         {scanner.scanner_id}
                       </p>
-                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                      <p className="text-xs text-slate-600 dark:text-neutral-400">
                         PC: <span className="font-mono">{scanner.pc_daemon_addr || '-'}</span>
                       </p>
                     </div>
@@ -927,10 +927,10 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                     </span>
                   </div>
 
-                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                  <p className="mt-2 text-xs text-slate-600 dark:text-neutral-400">
                     Scan gRPC: <span className="font-mono">{scanner.scan_grpc_addr || '-'}</span>
                   </p>
-                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                  <p className="mt-1 text-xs text-slate-600 dark:text-neutral-400">
                     Son heartbeat: <span className="font-medium">{formatHeartbeat(scanner.last_heartbeat)}</span>
                   </p>
 
@@ -944,7 +944,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                       className={`rounded-md border px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
                         isSelected
                           ? 'border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200'
-                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800'
                       }`}
                     >
                       {isSelected ? 'Secildi' : 'Sec'}
@@ -956,7 +956,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                       onClick={() => {
                         void handleReserve(scanner)
                       }}
-                      className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                      className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
                     >
                       {reserveButtonLabel}
                     </button>
@@ -968,7 +968,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
         ) : null}
 
         {hasListedScanners && scanners.length === 0 && !isListing ? (
-          <p className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-400">
+          <p className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-neutral-900 dark:bg-neutral-950/40 dark:text-neutral-400">
             Kullanilabilir scanner bulunamadi.
           </p>
         ) : null}
@@ -985,7 +985,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                 void handleRelease()
               }}
               disabled={isReleasing}
-              className="rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/40 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-slate-800"
+              className="rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/40 dark:bg-neutral-950 dark:text-emerald-300 dark:hover:bg-neutral-800"
             >
               {isReleasing ? 'Birakiliyor...' : 'Rezervasyonu Birak'}
             </button>
@@ -994,32 +994,32 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
       </section>
 
       <section
-        className={`space-y-4 rounded-xl border p-4 dark:border-slate-800 ${
+        className={`space-y-4 rounded-xl border p-4 dark:border-neutral-900 ${
           isReserved
-            ? 'border-slate-200 bg-white dark:bg-slate-900/70'
-            : 'border-slate-200 bg-slate-50/80 dark:bg-slate-900/30'
+            ? 'border-slate-200 bg-white dark:bg-neutral-950/70'
+            : 'border-slate-200 bg-slate-50/80 dark:bg-neutral-950/30'
         }`}
       >
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
             Adim 2
           </p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+          <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-neutral-100">
             A4 Bordro Tarama
           </h2>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          <p className="mt-1 text-sm text-slate-600 dark:text-neutral-400">
             Bu ekran duz bordro dokumani tarar. MICR veya QR tespiti yapmaz.
           </p>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-neutral-900 dark:bg-neutral-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-neutral-400">
               Aktif Bordro
             </p>
             {activeBordroId ? (
               <>
-                <p className="mt-1 break-all font-mono text-xs text-slate-700 dark:text-slate-300">
+                <p className="mt-1 break-all font-mono text-xs text-slate-700 dark:text-neutral-300">
                   {activeBordroId}
                 </p>
                 <button
@@ -1027,7 +1027,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                   onClick={() => {
                     setBordroIdInput(activeBordroId)
                   }}
-                  className="mt-2 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
+                  className="mt-2 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800"
                 >
                   Bu bordroyu kullan
                 </button>
@@ -1039,8 +1039,8 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
             )}
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-neutral-900 dark:bg-neutral-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-neutral-400">
               Hedef Bordro ID
             </p>
             <input
@@ -1050,12 +1050,12 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                 setBordroIdInput(event.target.value)
               }}
               placeholder="Bordro ID girin"
-              className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
             />
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-neutral-900 dark:bg-neutral-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-neutral-400">
               Rezervasyon
             </p>
             {isReserved ? (
@@ -1077,7 +1077,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
           }}
           className="flex flex-wrap items-end gap-3"
         >
-          <label className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
+          <label className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200">
             <input
               type="checkbox"
               checked={isDuplex}
@@ -1085,13 +1085,13 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
               onChange={(event) => {
                 setIsDuplex(event.target.checked)
               }}
-              className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 dark:border-slate-700 dark:bg-slate-950"
+              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-neutral-800 dark:bg-neutral-950"
             />
             {isDuplex ? 'Cift Yuz' : 'Tek Yuz'}
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-200">DPI</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200">DPI</span>
             <select
               value={scanDpi}
               disabled={isScanning}
@@ -1101,7 +1101,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                   setScanDpi(parsedValue)
                 }
               }}
-              className="w-28 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500"
+              className="w-28 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-500"
             >
               {SCAN_DPI_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -1112,7 +1112,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-200">Renk Modu</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200">Renk Modu</span>
             <select
               value={scanColorMode}
               disabled={isScanning}
@@ -1126,7 +1126,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                   setScanColorMode(nextColorMode)
                 }
               }}
-              className="w-36 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500"
+              className="w-36 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-500"
             >
               {SCAN_COLOR_MODE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -1137,7 +1137,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-200">Sayfa Boyutu</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200">Sayfa Boyutu</span>
             <select
               value={scanPageSize}
               disabled={isScanning}
@@ -1147,7 +1147,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                   setScanPageSize(nextPageSize)
                 }
               }}
-              className="w-32 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500"
+              className="w-32 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-500"
             >
               {SCAN_PAGE_SIZE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -1160,7 +1160,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
           <button
             type="submit"
             disabled={scanDisabled || isScanning}
-            className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+            className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
           >
             {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {isScanning ? 'Taraniyor...' : 'Tara'}
@@ -1177,14 +1177,14 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Tarama Sonuclari</h3>
-            <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-neutral-100">Tarama Sonuclari</h3>
+            <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
               {scanResults.length.toString()} dokuman
             </span>
           </div>
 
           {scanResults.length === 0 ? (
-            <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400">
+            <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-neutral-900 dark:bg-neutral-950/40 dark:text-neutral-400">
               Henuz bordro taramasi alinmadi.
             </p>
           ) : (
@@ -1228,14 +1228,14 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                 return (
                   <article
                     key={result.resultId}
-                    className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40"
+                    className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-900 dark:bg-neutral-950/40"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="space-y-1">
-                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
                           Tarama {index + 1}
                         </p>
-                        <p className="break-all font-mono text-xs text-slate-600 dark:text-slate-400">
+                        <p className="break-all font-mono text-xs text-slate-600 dark:text-neutral-400">
                           {result.object_path}
                         </p>
                       </div>
@@ -1246,7 +1246,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                         onClick={() => {
                           void loadStorageDetails(result, true)
                         }}
-                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800"
                       >
                         {storageDetails?.isLoading ? 'Yenileniyor...' : 'Yollari Yenile'}
                       </button>
@@ -1260,8 +1260,8 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                         }}
                         className={`rounded-md px-3 py-1.5 text-xs font-medium ${
                           selectedPage?.resultId === result.resultId && selectedPage.side === 'front'
-                            ? 'bg-cyan-600 text-white'
-                            : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                            ? 'bg-emerald-600 text-white'
+                            : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800'
                         }`}
                       >
                         On Yuz
@@ -1274,8 +1274,8 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                           }}
                           className={`rounded-md px-3 py-1.5 text-xs font-medium ${
                             selectedPage?.resultId === result.resultId && selectedPage.side === 'back'
-                              ? 'bg-cyan-600 text-white'
-                              : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                              ? 'bg-emerald-600 text-white'
+                              : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800'
                           }`}
                         >
                           Arka Yuz
@@ -1290,62 +1290,62 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                     ) : null}
 
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-neutral-900 dark:bg-neutral-950/60">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                           Depolama Referanslari
                         </p>
                         <div className="mt-2 space-y-2">
                           <div>
-                            <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400">front_image_path</p>
-                            <p className="break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                            <p className="font-mono text-[11px] text-slate-500 dark:text-neutral-400">front_image_path</p>
+                            <p className="break-all font-mono text-[11px] text-slate-700 dark:text-neutral-300">
                               {storageDetails?.frontImagePath ?? '-'}
                             </p>
-                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                            <p className="mt-1 text-[11px] text-slate-500 dark:text-neutral-400">
                               Boyut: {storageDetails?.frontImageSizeLabel ?? '-'}
                             </p>
                           </div>
                           <div>
-                            <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400">back_image_path</p>
-                            <p className="break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                            <p className="font-mono text-[11px] text-slate-500 dark:text-neutral-400">back_image_path</p>
+                            <p className="break-all font-mono text-[11px] text-slate-700 dark:text-neutral-300">
                               {storageDetails?.backImagePath ?? 'Arka yuz yok'}
                             </p>
-                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                            <p className="mt-1 text-[11px] text-slate-500 dark:text-neutral-400">
                               Boyut:{' '}
                               {storageDetails?.backImageSizeLabel ??
                                 (storageDetails?.backImagePath ? '-' : 'Arka yuz yok')}
                             </p>
                           </div>
                           <div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">metadata.json</p>
-                            <p className="break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                            <p className="text-[11px] text-slate-500 dark:text-neutral-400">metadata.json</p>
+                            <p className="break-all font-mono text-[11px] text-slate-700 dark:text-neutral-300">
                               {storageDetails?.metadataPath ?? '-'}
                             </p>
                           </div>
                         </div>
                       </div>
 
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-neutral-900 dark:bg-neutral-950/60">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                           Tarama Ozeti
                         </p>
-                        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                        <p className="mt-2 text-xs text-slate-600 dark:text-neutral-400">
                           Sayfa Sayisi:{' '}
-                          <span className="font-semibold text-slate-700 dark:text-slate-200">
+                          <span className="font-semibold text-slate-700 dark:text-neutral-200">
                             {result.page_count.toString()}
                           </span>
                         </p>
-                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                        <p className="mt-1 text-xs text-slate-600 dark:text-neutral-400">
                           Bordro ID:{' '}
-                          <span className="font-mono text-slate-700 dark:text-slate-200">{result.bordro_id}</span>
+                          <span className="font-mono text-slate-700 dark:text-neutral-200">{result.bordro_id}</span>
                         </p>
                         <div className="mt-2 space-y-2">
                           {scanSettings.map((setting) => (
                             <div
                               key={setting.key}
-                              className="rounded-md border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-950/50"
+                              className="rounded-md border border-slate-200 bg-white px-2 py-1.5 dark:border-neutral-800 dark:bg-neutral-950/50"
                             >
                               <div className="flex items-center justify-between gap-2">
-                                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                <p className="text-xs font-semibold text-slate-700 dark:text-neutral-200">
                                   {setting.label}
                                 </p>
                                 <span
@@ -1354,7 +1354,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                                   {setting.status.label}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                              <p className="text-[11px] text-slate-600 dark:text-neutral-400">
                                 Istenen: {setting.requested} | Uygulanan: {setting.effective}
                               </p>
                             </div>
@@ -1362,25 +1362,25 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                         </div>
                       </div>
 
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-neutral-900 dark:bg-neutral-950/60">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                           Durum
                         </p>
-                        <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
+                        <p className="mt-2 text-sm text-slate-700 dark:text-neutral-300">
                           Bu kayit sadece dokuman taramasi icerir.
                         </p>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">
                           MICR ve QR analizi bu akista calistirilmaz.
                         </p>
                       </div>
                     </div>
 
                     {storageDetails?.metadataJson ? (
-                      <details className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-slate-600 dark:text-slate-300">
+                      <details className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-neutral-900 dark:bg-neutral-950/60">
+                        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-slate-600 dark:text-neutral-300">
                           metadata.json
                         </summary>
-                        <pre className="mt-2 max-h-56 overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
+                        <pre className="mt-2 max-h-56 overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300">
                           {storageDetails.metadataJson}
                         </pre>
                       </details>
@@ -1392,23 +1392,23 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
           )}
         </div>
 
-        <section className="min-h-0 rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40">
+        <section className="min-h-0 rounded-xl border border-slate-200 bg-white dark:border-neutral-900 dark:bg-neutral-950/40">
           <div className="flex h-full min-h-[420px] flex-col">
-            <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-800">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Dokuman Onizleme</h3>
+            <div className="border-b border-slate-200 px-4 py-3 dark:border-neutral-900">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-neutral-100">Dokuman Onizleme</h3>
               {selectedResult ? (
-                <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-neutral-400">
                   {selectedResult.object_path}
                 </p>
               ) : null}
             </div>
 
             <div className="min-h-0 flex-1 p-4">
-              <div className="flex h-full items-center justify-center rounded-lg border border-slate-200 bg-slate-100 p-4 dark:border-slate-700 dark:bg-slate-900">
+              <div className="flex h-full items-center justify-center rounded-lg border border-slate-200 bg-slate-100 p-4 dark:border-neutral-800 dark:bg-neutral-950">
                 {selectedResult === null || selectedPage === null ? (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Onizleme icin bir tarama secin.</p>
+                  <p className="text-sm text-slate-500 dark:text-neutral-400">Onizleme icin bir tarama secin.</p>
                 ) : viewer.isLoading ? (
-                  <div className="h-56 w-full animate-pulse rounded-md bg-slate-200 dark:bg-slate-800" />
+                  <div className="h-56 w-full animate-pulse rounded-md bg-slate-200 dark:bg-neutral-900" />
                 ) : viewer.error ? (
                   <div className="space-y-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-rose-600/50 dark:bg-rose-500/10 dark:text-rose-300">
                     <p>{viewer.error}</p>
@@ -1417,7 +1417,7 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                       onClick={() => {
                         void loadSelectedPreview()
                       }}
-                      className="rounded-md border border-red-300 bg-white px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 dark:border-rose-500/50 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-slate-800"
+                      className="rounded-md border border-red-300 bg-white px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 dark:border-rose-500/50 dark:bg-neutral-950 dark:text-rose-300 dark:hover:bg-neutral-800"
                     >
                       Tekrar Dene
                     </button>
@@ -1429,10 +1429,10 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                     onError={() => {
                       updateViewer((previous) => ({ ...previous, renderFailed: true }))
                     }}
-                    className="h-full w-full rounded-md border border-slate-300 bg-white object-contain dark:border-slate-700 dark:bg-slate-950"
+                    className="h-full w-full rounded-md border border-slate-300 bg-white object-contain dark:border-neutral-800 dark:bg-neutral-950"
                   />
                 ) : viewer.objectUrl ? (
-                  <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                  <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-600 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300">
                     <p>Dosya tarayicida gorsellestirilemedi. Isterseniz indirebilirsiniz.</p>
                     <a
                       href={viewer.objectUrl}
@@ -1440,24 +1440,24 @@ export default function BordroScanTab({ activeBordroId }: BordroScanTabProps) {
                         viewer.objectPath ?? '',
                         viewer.mimeType,
                       )}`}
-                      className="inline-flex rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                      className="inline-flex rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
                     >
                       Dosyayi Indir
                     </a>
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                  <p className="text-sm text-slate-500 dark:text-neutral-400">
                     {selectedPage.side === 'back' ? 'Arka yuz yok.' : 'On yuz goruntusu bulunamadi.'}
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="border-t border-slate-200 px-4 py-3 dark:border-slate-800">
+            <div className="border-t border-slate-200 px-4 py-3 dark:border-neutral-900">
               {viewerInfo.length > 0 ? (
-                <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">Gorsel: {viewerInfo.join(' | ')}</p>
+                <p className="mb-2 text-xs text-slate-500 dark:text-neutral-400">Gorsel: {viewerInfo.join(' | ')}</p>
               ) : null}
-              <p className="text-sm text-slate-700 dark:text-slate-200">
+              <p className="text-sm text-slate-700 dark:text-neutral-200">
                 Secili sayfa:{' '}
                 <span className="font-medium">{selectedPage?.side === 'back' ? 'Arka Yuz' : 'On Yuz'}</span>
               </p>

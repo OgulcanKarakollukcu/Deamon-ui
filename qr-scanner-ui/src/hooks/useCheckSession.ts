@@ -23,8 +23,7 @@ export interface UseCheckSessionResult {
   saveCheckPhoto: (dataUrl: string, qrValue?: string) => void
   confirmCheck: () => void
   addAnotherCheck: () => void
-  goToBatchPhoto: () => void
-  saveBatchPhoto: (dataUrl: string) => void
+  retakeCheck: (checkId: string) => void
   finish: () => void
   reset: () => void
 }
@@ -37,8 +36,7 @@ type CheckSessionAction =
   | { type: 'SAVE_CHECK_PHOTO'; dataUrl: string; qrValue?: string }
   | { type: 'CONFIRM_CHECK' }
   | { type: 'ADD_ANOTHER_CHECK' }
-  | { type: 'GO_TO_BATCH_PHOTO' }
-  | { type: 'SAVE_BATCH_PHOTO'; dataUrl: string }
+  | { type: 'RETAKE_CHECK'; checkId: string }
   | { type: 'FINISH' }
   | { type: 'RESET' }
 
@@ -52,10 +50,9 @@ function createCurrentCheck(): Partial<CapturedCheck> {
 // Hook ilk açıldığında kullanılacak başlangıç state'ini üretir.
 function createInitialState(): CheckSessionState {
   return {
-    // Oturum başında çek listesi boş ve batch foto yoktur.
+    // Oturum başında çek listesi boştur.
     session: {
       checks: [],
-      batchPhotoDataUrl: null,
     },
     // Uygulama ilk ekranda açılır.
     step: 'home-landing',
@@ -178,23 +175,19 @@ function checkSessionReducer(
         step: 'check-photo',
       }
 
-    case 'GO_TO_BATCH_PHOTO':
-      // Tüm çeklerin ardından toplu (batch) fotoğraf adımına geçiş.
-      return {
-        ...state,
-        step: 'batch-photo',
-      }
-
-    case 'SAVE_BATCH_PHOTO':
-      // Batch fotoğrafı oturum bilgisine yazıp oturum özeti adımına geçiyoruz.
+    case 'RETAKE_CHECK': {
+      // Seçilen çeki listeden çıkarıp kullanıcıyı yeniden çekim adımına alır.
+      const nextChecks = state.session.checks.filter((check) => check.id !== action.checkId)
       return {
         ...state,
         session: {
           ...state.session,
-          batchPhotoDataUrl: action.dataUrl,
+          checks: nextChecks,
         },
-        step: 'session-summary',
+        currentCheck: createCurrentCheck(),
+        step: 'check-photo',
       }
+    }
 
     case 'FINISH':
       // Akışı bitirme çağrısında da özet ekranında kalınır/gösterilir.
@@ -247,14 +240,9 @@ export function useCheckSession(): UseCheckSessionResult {
     dispatch({ type: 'ADD_ANOTHER_CHECK' })
   }
 
-  // Batch fotoğraf adımına geçiş yapar.
-  const goToBatchPhoto = (): void => {
-    dispatch({ type: 'GO_TO_BATCH_PHOTO' })
-  }
-
-  // Batch (toplu) fotoğraf verisini kaydeder.
-  const saveBatchPhoto = (dataUrl: string): void => {
-    dispatch({ type: 'SAVE_BATCH_PHOTO', dataUrl })
+  // Seçilen çeki silip yeniden çekim başlatır.
+  const retakeCheck = (checkId: string): void => {
+    dispatch({ type: 'RETAKE_CHECK', checkId })
   }
 
   // Akışı tamamlayıp özet adımına taşır.
@@ -278,8 +266,7 @@ export function useCheckSession(): UseCheckSessionResult {
     saveCheckPhoto,
     confirmCheck,
     addAnotherCheck,
-    goToBatchPhoto,
-    saveBatchPhoto,
+    retakeCheck,
     finish,
     reset,
   }

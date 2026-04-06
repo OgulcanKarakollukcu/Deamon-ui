@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { AppLayout } from '../components/AppLayout'
 import {
-  BatchPhotoStep,
   CheckPhotoStep,
   CheckSummaryStep,
   SessionSummaryStep,
@@ -12,6 +11,7 @@ import { useCheckSession } from '../hooks/useCheckSession'
 import { claimInvite, submitInviteSession } from '../services/scanInviteClient'
 import type { CapturedCheck } from '../types/check'
 import { Landing } from './Landing'
+import { closePageSafely } from '../utils/closePage'
 import type {
   ClaimInviteResponse,
   SubmitInviteCheckPayload,
@@ -154,16 +154,8 @@ function clearClaimCache(inviteToken: string): void {
   }
 }
 
-function closeCurrentPage(): void {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  window.open('', '_self')
-  window.close()
-}
-
 export function CaptureSession() {
+  const navigate = useNavigate()
   const { inviteToken } = useParams<{ inviteToken: string }>()
   const [claimData, setClaimData] = useState<ClaimInviteResponse | null>(null)
   const [claimLoading, setClaimLoading] = useState<boolean>(true)
@@ -182,14 +174,14 @@ export function CaptureSession() {
     goToHomeLanding,
     saveCheckPhoto,
     addAnotherCheck,
-    goToBatchPhoto,
-    saveBatchPhoto,
+    retakeCheck,
+    finish,
     reset,
   } = useCheckSession()
 
   useEffect(() => {
     if (!inviteToken) {
-      setClaimError('Link parametresi bulunamadi.')
+      setClaimError('Link parametresi bulunamadı.')
       setClaimLoading(false)
       return
     }
@@ -244,13 +236,22 @@ export function CaptureSession() {
     return formatDateTime(claimData.expires_at)
   }, [claimData])
 
-  const handleSubmitSession = async () => {
-    if (!claimData || submitLoading || submitResult) {
+  useEffect(() => {
+    if (!submitResult || !inviteToken) {
       return
     }
 
-    if (!session.batchPhotoDataUrl) {
-      setSubmitError('Toplu fotograf zorunludur. Lutfen once toplu fotograf cekin.')
+    const redirectTimer = window.setTimeout(() => {
+      navigate(`/capture/${inviteToken}/completed`, { replace: true })
+    }, 700)
+
+    return () => {
+      window.clearTimeout(redirectTimer)
+    }
+  }, [inviteToken, navigate, submitResult])
+
+  const handleSubmitSession = async () => {
+    if (!claimData || submitLoading || submitResult) {
       return
     }
 
@@ -261,7 +262,6 @@ export function CaptureSession() {
       const checks = mapSessionChecksToPayload(session.checks)
       const response = await submitInviteSession(claimData.invite_id, claimData.session_token, {
         checks,
-        batch_image_data_url: session.batchPhotoDataUrl,
         completed_at: new Date().toISOString(),
         session_metadata: buildSessionMetadata(),
       })
@@ -284,12 +284,19 @@ export function CaptureSession() {
     setSubmitResult(null)
   }
 
+  const handleRetakeFromSummary = (checkId: string): void => {
+    setSubmitLoading(false)
+    setSubmitError(null)
+    setSubmitResult(null)
+    retakeCheck(checkId)
+  }
+
   if (claimLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#F3F3F3] px-4 text-[#4B4F54]">
         <div className="w-full max-w-md rounded-2xl border border-[#DDEFE3] bg-white p-5 text-center shadow-[0_6px_20px_rgba(0,122,61,0.1)]">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-[#D3E9DB] border-t-[#007A3D]" />
-          <p className="mt-3 text-sm">Davet linki dogrulaniyor...</p>
+          <p className="mt-3 text-sm">Davet linki doğrulanıyor...</p>
         </div>
       </main>
     )
@@ -298,24 +305,17 @@ export function CaptureSession() {
   if (claimError || !claimData) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#F3F3F3] px-4 text-[#4B4F54]">
-        <div className="w-full max-w-md rounded-2xl border border-rose-200 bg-white p-5 shadow-[0_8px_24px_rgba(0,122,61,0.08)]">
-          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-rose-100 text-xl text-rose-700">
-            !
-          </div>
-          <h1 className="mt-3 text-center text-lg font-semibold text-rose-700">Bu link su an kullanilamiyor</h1>
+        <div className="w-full max-w-md rounded-2xl border border-[#DDEFE3] bg-white p-6 shadow-[0_8px_24px_rgba(0,122,61,0.08)]">
+          <img
+            src="/sekerbank_mini.svg"
+            alt="Şekerbank"
+            className="mx-auto h-8 w-auto"
+          />
+          <h1 className="mt-3 text-center text-lg font-semibold text-slate-900">İşleminiz için teşekkür ederiz</h1>
           <p className="mt-2 text-center text-sm text-[#5B6168]">
-            Tek kullanimlik davet baglantisi gecersiz, suresi dolmus veya islem tamamlanmis olabilir.
+            Bu bağlantı şu an kullanılamıyor. İşlem tamamlanmış, süresi dolmuş veya bağlantı geçersiz olabilir.
           </p>
-
-          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-            {claimError ?? 'Dogrulama sirasinda baglanti kullanilamadi.'}
-          </div>
-
-          <div className="mt-4 rounded-xl border border-[#DDEFE3] bg-[#F7FBF8] p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#007A3D]">Ne yapabilirsiniz?</p>
-            <p className="mt-2 text-sm text-[#4B4F54]">Sube calisaninizdan yeni bir link isteyin.</p>
-            <p className="mt-1 text-sm text-[#4B4F54]">Bu sayfayi guvenle kapatabilirsiniz.</p>
-          </div>
+          <p className="mt-1 text-center text-sm text-[#5B6168]">Bu sayfayı kapatabilirsiniz.</p>
 
           <div className="mt-4 grid grid-cols-2 gap-2">
             <button
@@ -327,15 +327,15 @@ export function CaptureSession() {
             </button>
             <button
               type="button"
-              onClick={closeCurrentPage}
+              onClick={closePageSafely}
               className="h-11 rounded-xl bg-[#007A3D] text-sm font-semibold text-white transition-colors hover:bg-[#018342]"
             >
-              Sayfayi Kapat
+              Sayfayı Kapat
             </button>
           </div>
 
           <p className="mt-2 text-center text-[11px] text-[#8A9096]">
-            Bazi tarayicilar guvenlik nedeniyle otomatik kapatmaya izin vermeyebilir.
+            Bazı tarayıcılar güvenlik nedeniyle otomatik kapatmaya izin vermeyebilir.
           </p>
         </div>
       </main>
@@ -348,7 +348,7 @@ export function CaptureSession() {
     case 'home-landing':
       content = (
         <AppLayout
-          stepLabel="Cek Tarama"
+          stepLabel="Çek Tarama"
           stepCurrent={1}
           stepTotal={1}
           fullWidth
@@ -356,14 +356,14 @@ export function CaptureSession() {
           <section className="mx-auto w-full max-w-3xl px-0">
             <Landing onStart={start} embedded />
             <div className="mx-4 mb-6 rounded-2xl border border-[#DDEFE3] bg-white p-4 shadow-[0_6px_20px_rgba(0,122,61,0.08)] sm:mx-6">
-              <p className="text-xs uppercase tracking-wide text-[#007A3D]">Davet Onaylandi</p>
+              <p className="text-xs uppercase tracking-wide text-[#007A3D]">Davet Onaylandı</p>
               <p className="mt-2 text-sm text-[#6E747B]">
-                Musteri TC: <strong>{claimData.customer_national_id}</strong>
+                Müşteri TC: <strong>{claimData.customer_national_id}</strong>
               </p>
               <p className="mt-1 text-sm text-[#6E747B]">
-                Musteri email: <strong>{claimData.customer_email}</strong>
+                Müşteri e-posta: <strong>{claimData.customer_email}</strong>
               </p>
-              <p className="mt-1 text-sm text-[#6E747B]">Link gecerlilik: {inviteExpiresAt}</p>
+              <p className="mt-1 text-sm text-[#6E747B]">Link geçerlilik: {inviteExpiresAt}</p>
             </div>
           </section>
         </AppLayout>
@@ -373,7 +373,7 @@ export function CaptureSession() {
     case 'pre-start-info':
       content = (
         <AppLayout
-          stepLabel="Bilgilendirme ve KVKK Onayi"
+          stepLabel="Bilgilendirme ve KVKK Onayı"
           stepCurrent={1}
           stepTotal={1}
           fullWidth
@@ -381,6 +381,9 @@ export function CaptureSession() {
           <StartConsentStep
             onContinue={proceedToCheckPhoto}
             onBack={goToHomeLanding}
+            customerNationalId={claimData.customer_national_id}
+            customerEmail={claimData.customer_email}
+            inviteExpiresAtText={inviteExpiresAt}
           />
         </AppLayout>
       )
@@ -400,21 +403,21 @@ export function CaptureSession() {
       if (!summaryCheck) {
         content = (
           <AppLayout
-            stepLabel="Cek Tamamlandi"
+            stepLabel="Çek Tamamlandı"
             stepCurrent={2}
             stepTotal={2}
           >
             <section className="space-y-4 rounded-2xl border border-red-200 bg-red-50 p-5">
-              <h2 className="text-base font-semibold text-red-700">Cek ozeti hazirlanamadi</h2>
+              <h2 className="text-base font-semibold text-red-700">Çek özeti hazırlanamadı</h2>
               <p className="text-sm text-red-700/90">
-                Cek bilgileri eksik gorunuyor. Yeni bir cekle devam edebilirsiniz.
+                Çek bilgileri eksik görünüyor. Yeni bir çekle devam edebilirsiniz.
               </p>
               <button
                 type="button"
                 onClick={addAnotherCheck}
                 className="w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-500"
               >
-                Yeni Cek Ekle
+                Yeni Çek Ekle
               </button>
             </section>
           </AppLayout>
@@ -424,7 +427,7 @@ export function CaptureSession() {
 
       content = (
         <AppLayout
-          stepLabel="Cek Tamamlandi"
+          stepLabel="Çek Tamamlandı"
           stepCurrent={2}
           stepTotal={2}
         >
@@ -433,23 +436,13 @@ export function CaptureSession() {
             checkIndex={getSummaryCheckIndex(summaryCheck, session.checks)}
             checks={session.checks}
             onAddAnother={addAnotherCheck}
-            onFinish={goToBatchPhoto}
+            onRetakeCheck={retakeCheck}
+            onFinish={finish}
           />
         </AppLayout>
       )
       break
     }
-
-    case 'batch-photo':
-      content = (
-        <main className="h-[100dvh] w-full overflow-hidden bg-black">
-          <BatchPhotoStep
-            checkCount={session.checks.length}
-            onCapture={saveBatchPhoto}
-          />
-        </main>
-      )
-      break
 
     case 'session-summary':
       content = (
@@ -457,7 +450,7 @@ export function CaptureSession() {
           <header className="fixed inset-x-0 top-0 z-30 h-14 border-b border-[#DFDFDF] bg-white/95 backdrop-blur-sm">
             <div className="mx-auto flex h-full w-full max-w-3xl items-center justify-between px-4 sm:px-6">
               <div className="w-10" />
-              <p className="text-sm font-medium text-slate-900">Oturum Ozeti</p>
+              <p className="text-sm font-medium text-slate-900">Oturum Özeti</p>
               <span className="w-10" />
             </div>
           </header>
@@ -467,6 +460,7 @@ export function CaptureSession() {
               session={session}
               onReset={handleResetSession}
               onSubmit={handleSubmitSession}
+              onRetakeCheck={handleRetakeFromSummary}
               isSubmitting={submitLoading}
               submitSuccess={submitResult !== null}
               submitError={submitError}

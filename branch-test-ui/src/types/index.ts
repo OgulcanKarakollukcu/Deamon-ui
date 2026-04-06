@@ -248,11 +248,12 @@ export type CustomerSubmittedCheck = {
   qr_value: string
   image_data_url: string
   captured_at: string
+  metadata?: unknown | null
 }
 
 export type CustomerScanInviteDetail = {
   invite: CustomerScanInviteSummary
-  batch_image_data_url: string | null
+  session_metadata?: unknown | null
   checks: CustomerSubmittedCheck[]
 }
 
@@ -262,4 +263,5 @@ export type Tab =
   | 'document-scan'
   | 'cheque-debug'
   | 'customer-link'
+  | 'intelligence'
   | 'logs'

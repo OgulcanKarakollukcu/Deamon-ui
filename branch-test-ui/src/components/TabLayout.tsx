@@ -11,6 +11,7 @@ import {
   Menu,
   Moon,
   Server,
+  ShieldCheck,
   Sun,
 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
@@ -28,6 +29,7 @@ type TabLayoutProps = {
   documentScanContent?: ReactNode
   chequeDebugContent?: ReactNode
   customerLinkContent?: ReactNode
+  intelligenceContent?: ReactNode
   logsContent?: ReactNode
   contentDisabled?: boolean
   contentOverlay?: ReactNode
@@ -36,19 +38,21 @@ type TabLayoutProps = {
 const tabs: Array<{ id: AppTab; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'bordro', label: 'Bordro', icon: FileText },
-  { id: 'document-scan', label: 'Dokuman Tara', icon: FileUp },
+  { id: 'document-scan', label: 'Doküman Tara', icon: FileUp },
   { id: 'cheque-debug', label: 'Cheque Debug', icon: Binary },
-  { id: 'customer-link', label: 'Musteri Link', icon: LinkIcon },
+  { id: 'customer-link', label: 'Müşteri Link', icon: LinkIcon },
+  { id: 'intelligence', label: 'İstihbarat', icon: ShieldCheck },
   { id: 'logs', label: 'Logs', icon: History },
 ]
 
 const tabTitleMap: Record<AppTab, string> = {
   dashboard: 'Dashboard',
   bordro: 'Bordro',
-  'document-scan': 'Dokuman Tarama',
+  'document-scan': 'Doküman Tarama',
   'cheque-debug': 'Cheque Debug',
-  'customer-link': 'Musteri Link Is Akisi',
-  logs: 'Log Kayitlari',
+  'customer-link': 'Müşteri Link Yönetimi',
+  intelligence: 'İstihbarat Sistemi',
+  logs: 'Log Kayıtları',
 }
 
 export function TabLayout({
@@ -63,6 +67,7 @@ export function TabLayout({
   documentScanContent,
   chequeDebugContent,
   customerLinkContent,
+  intelligenceContent,
   logsContent,
   contentDisabled = false,
   contentOverlay,
@@ -73,7 +78,7 @@ export function TabLayout({
   const pageTitle = tabTitleMap[activeTab]
 
   return (
-    <main className="h-screen overflow-hidden bg-slate-100 dark:bg-slate-950">
+    <main className="h-screen overflow-hidden bg-[#F3F3F3] text-[#4B4F54] dark:bg-[#050605] dark:text-[#E6E9E7]">
       <TabGroup
         className="h-full lg:flex"
         selectedIndex={normalizedTabIndex}
@@ -86,19 +91,18 @@ export function TabLayout({
       >
         <aside
           className={clsx(
-            'hidden h-full border-r border-slate-700 bg-[#0a1f44] text-slate-100 transition-all duration-300 lg:flex lg:flex-col',
+            'hidden h-full border-r border-[#DFDFDF] bg-white text-[#4B4F54] transition-all duration-300 lg:flex lg:flex-col dark:border-[#213328] dark:bg-[#0b120e] dark:text-[#d9e3dc]',
             isSidebarCollapsed ? 'w-20' : 'w-72',
           )}
         >
-          <div className={clsx('border-b border-slate-700', isSidebarCollapsed ? 'p-3' : 'p-6')}>
+          <div className={clsx('border-b border-[#DFDFDF]', isSidebarCollapsed ? 'p-3' : 'p-6')}>
             <div className={clsx('flex', isSidebarCollapsed ? 'justify-center' : 'justify-start')}>
               <img
-                src="/logo.png"
-                alt="Branch Test UI"
-                className={clsx('w-auto object-contain', isSidebarCollapsed ? 'h-10' : 'h-14')}
+                src={isSidebarCollapsed ? '/sekerbank-mini.svg' : '/sekerbank-logo-2.png'}
+                alt="Şekerbank Logo"
+                className={clsx('w-auto object-contain', isSidebarCollapsed ? 'h-9' : 'h-14')}
               />
             </div>
-            {!isSidebarCollapsed ? <h1 className="mt-3 text-xl font-semibold">Apex Branch SD</h1> : null}
           </div>
 
           <nav className={clsx('flex-1 space-y-1', isSidebarCollapsed ? 'p-2' : 'p-4')}>
@@ -113,8 +117,8 @@ export function TabLayout({
                       'flex items-center rounded-md text-sm font-medium transition',
                       isSidebarCollapsed ? 'justify-center px-0 py-3' : 'gap-3 px-4 py-3 text-left',
                       selected
-                        ? 'bg-slate-800 text-white'
-                        : 'text-slate-200 hover:bg-slate-800 hover:text-white',
+                        ? 'bg-[#EAF4EE] text-[#007A3D] dark:bg-[#1b3226] dark:text-[#9ad7b1]'
+                        : 'text-[#4B4F54] hover:bg-[#F3F3F3] hover:text-[#007A3D] dark:text-[#c4d0c9] dark:hover:bg-[#132019] dark:hover:text-[#a5ddba]',
                     )
                   }
                 >
@@ -127,52 +131,56 @@ export function TabLayout({
 
           <div
             className={clsx(
-              'space-y-2 border-t border-slate-700 text-xs',
+              'space-y-2 border-t border-[#DFDFDF] text-xs',
               isSidebarCollapsed ? 'p-2' : 'p-4',
             )}
           >
             <div
               className={clsx(
-                'flex items-center rounded-md bg-slate-900/40',
+                'flex items-center rounded-md bg-[#F4FBF6] dark:bg-[#122019]',
                 isSidebarCollapsed ? 'justify-center gap-1 px-1 py-2' : 'justify-between px-3 py-2',
               )}
               title={isSidebarCollapsed ? 'Aktif PCD' : undefined}
             >
               <span
                 className={clsx(
-                  'inline-flex items-center text-slate-300',
+                  'inline-flex items-center text-[#4B4F54] dark:text-[#cdd8d2]',
                   isSidebarCollapsed ? '' : 'gap-2',
                 )}
               >
                 <Database className="h-3.5 w-3.5" />
                 {isSidebarCollapsed ? <span className="sr-only">Aktif PCD</span> : 'Aktif PCD'}
               </span>
-              <span className="font-semibold text-white">{activePcDaemonCount.toString()}</span>
+              <span className="font-semibold text-[#007A3D] dark:text-[#9ed8b3]">
+                {activePcDaemonCount.toString()}
+              </span>
             </div>
 
             <div
               className={clsx(
-                'flex items-center rounded-md bg-slate-900/40',
+                'flex items-center rounded-md bg-[#F4FBF6] dark:bg-[#122019]',
                 isSidebarCollapsed ? 'justify-center gap-1 px-1 py-2' : 'justify-between px-3 py-2',
               )}
               title={isSidebarCollapsed ? 'Aktif BD' : undefined}
             >
               <span
                 className={clsx(
-                  'inline-flex items-center text-slate-300',
+                  'inline-flex items-center text-[#4B4F54] dark:text-[#cdd8d2]',
                   isSidebarCollapsed ? '' : 'gap-2',
                 )}
               >
                 <Server className="h-3.5 w-3.5" />
                 {isSidebarCollapsed ? <span className="sr-only">Aktif BD</span> : 'Aktif BD'}
               </span>
-              <span className="font-semibold text-white">{activeBranchDaemonCount.toString()}</span>
+              <span className="font-semibold text-[#007A3D] dark:text-[#9ed8b3]">
+                {activeBranchDaemonCount.toString()}
+              </span>
             </div>
           </div>
         </aside>
 
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-          <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+          <header className="sticky top-0 z-20 border-b border-[#DFDFDF] bg-white/95 backdrop-blur dark:border-[#213328] dark:bg-[#0d1510]/95">
             <div className="flex h-16 items-center justify-between px-4 md:px-6">
               <div className="flex items-center gap-3">
                 <button
@@ -180,16 +188,21 @@ export function TabLayout({
                   onClick={() => {
                     setIsSidebarCollapsed((prev) => !prev)
                   }}
-                  className="hidden h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 lg:inline-flex"
-                  aria-label={isSidebarCollapsed ? 'Sidebari genislet' : 'Sidebari daralt'}
+                  className="hidden h-9 w-9 items-center justify-center rounded-md border border-[#DFDFDF] text-[#007A3D] transition hover:bg-[#F3F8F5] dark:border-[#2a4032] dark:text-[#9bd8b3] dark:hover:bg-[#132119] lg:inline-flex"
+                  aria-label={isSidebarCollapsed ? 'Kenar çubuğunu genişlet' : 'Kenar çubuğunu daralt'}
                 >
                   <Menu className="h-4 w-4" />
                 </button>
+                <img
+                  src="/sekerbank-mini.svg"
+                  alt="Şekerbank"
+                  className="h-7 w-7 rounded-md border border-[#DDEFE3] bg-white p-1 dark:border-[#2a4032] dark:bg-[#122019]"
+                />
 
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{pageTitle}</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Daemon ve scanner operasyonlarini tek panelden yonetin.
+                  <h2 className="text-lg font-semibold text-[#4B4F54] dark:text-[#e4ebe7]">{pageTitle}</h2>
+                  <p className="text-xs text-[#6E747B] dark:text-[#aeb9b3]">
+                    Daemon ve scanner operasyonlarını tek panelden yönetin.
                   </p>
                 </div>
               </div>
@@ -197,7 +210,7 @@ export function TabLayout({
               <button
                 type="button"
                 onClick={onThemeToggle}
-                className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="inline-flex items-center gap-2 rounded-md border border-[#DFDFDF] px-3 py-2 text-sm text-[#007A3D] transition hover:bg-[#F3F8F5] dark:border-[#2a4032] dark:text-[#9bd8b3] dark:hover:bg-[#132119]"
               >
                 {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                 {isDarkMode ? 'Light Mode' : 'Dark Mode'}
@@ -205,7 +218,7 @@ export function TabLayout({
             </div>
           </header>
 
-          <nav className="shrink-0 border-b border-slate-200 bg-white px-4 py-2 dark:border-slate-800 dark:bg-slate-950 lg:hidden">
+          <nav className="shrink-0 border-b border-[#DFDFDF] bg-white px-4 py-2 dark:border-[#213328] dark:bg-[#0d1510] lg:hidden">
             <TabList className="flex flex-wrap gap-2">
               {tabs.map((tab) => (
                 <Tab
@@ -215,8 +228,8 @@ export function TabLayout({
                     clsx(
                       'inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition',
                       selected
-                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                        : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+                        ? 'bg-[#007A3D] text-white dark:bg-[#1f3f30] dark:text-[#ebf4ee]'
+                        : 'text-[#4B4F54] hover:bg-[#F3F3F3] dark:text-[#c3d0c9] dark:hover:bg-[#132119]',
                     )
                   }
                 >
@@ -228,38 +241,39 @@ export function TabLayout({
           </nav>
 
           <section className="relative min-h-0 flex-1 overflow-hidden p-4 md:p-6 lg:p-8">
-            <div className="relative h-full min-h-0 rounded-2xl border border-slate-200/80 bg-white/85 p-4 shadow-lg shadow-slate-300/20 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80 dark:shadow-slate-950/40 md:p-6">
-              <fieldset
-                disabled={contentDisabled}
-                className={clsx(
-                  'h-full min-h-0 min-w-0 border-0 p-0 transition',
-                  contentDisabled && 'pointer-events-none opacity-70',
-                )}
-              >
-                <TabPanels className="h-full min-h-0">
-                  <TabPanel className="h-full min-h-0 overflow-auto">
-                    {dashboardContent ?? <div>Dashboard placeholder</div>}
-                  </TabPanel>
-                  <TabPanel className="h-full min-h-0 overflow-auto">
-                    {bordroContent ?? <div>Bordro placeholder</div>}
-                  </TabPanel>
-                  <TabPanel className="h-full min-h-0 overflow-auto">
-                    {documentScanContent ?? <div>Document scan placeholder</div>}
-                  </TabPanel>
-                  <TabPanel className="h-full min-h-0 overflow-auto">
-                    {chequeDebugContent ?? <div>Cheque debug placeholder</div>}
-                  </TabPanel>
-                  <TabPanel className="h-full min-h-0 overflow-auto">
-                    {customerLinkContent ?? <div>Customer link placeholder</div>}
-                  </TabPanel>
-                  <TabPanel className="h-full min-h-0 overflow-auto">
-                    {logsContent ?? <div>Logs placeholder</div>}
-                  </TabPanel>
-                </TabPanels>
-              </fieldset>
+            <fieldset
+              disabled={contentDisabled}
+              className={clsx(
+                'h-full min-h-0 min-w-0 border-0 p-0 transition',
+                contentDisabled && 'pointer-events-none opacity-70',
+              )}
+            >
+              <TabPanels className="h-full min-h-0">
+                <TabPanel className="h-full min-h-0 overflow-auto">
+                  {dashboardContent ?? <div>Dashboard placeholder</div>}
+                </TabPanel>
+                <TabPanel className="h-full min-h-0 overflow-auto">
+                  {bordroContent ?? <div>Bordro placeholder</div>}
+                </TabPanel>
+                <TabPanel className="h-full min-h-0 overflow-auto">
+                  {documentScanContent ?? <div>Document scan placeholder</div>}
+                </TabPanel>
+                <TabPanel className="h-full min-h-0 overflow-auto">
+                  {chequeDebugContent ?? <div>Cheque debug placeholder</div>}
+                </TabPanel>
+                <TabPanel className="h-full min-h-0 overflow-auto">
+                  {customerLinkContent ?? <div>Customer link placeholder</div>}
+                </TabPanel>
+                <TabPanel className="h-full min-h-0 overflow-auto">
+                  {intelligenceContent ?? <div>Intelligence placeholder</div>}
+                </TabPanel>
+                <TabPanel className="h-full min-h-0 overflow-auto">
+                  {logsContent ?? <div>Logs placeholder</div>}
+                </TabPanel>
+              </TabPanels>
+            </fieldset>
 
-              {contentOverlay ? <div className="absolute inset-0 z-10">{contentOverlay}</div> : null}
-            </div>
+            {contentOverlay ? <div className="absolute inset-0 z-10">{contentOverlay}</div> : null}
           </section>
         </div>
       </TabGroup>

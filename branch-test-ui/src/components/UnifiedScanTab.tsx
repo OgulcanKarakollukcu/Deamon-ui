@@ -52,20 +52,20 @@ export default function UnifiedScanTab({
   return (
     <div className="space-y-5">
       {showModeSelector ? (
-        <section className="rounded-2xl border border-slate-200 bg-gradient-to-r from-white via-cyan-50/70 to-amber-50/70 p-4 shadow-sm dark:border-slate-800 dark:from-slate-950 dark:via-cyan-500/5 dark:to-amber-500/5">
+        <section className="rounded-2xl border border-slate-200 bg-gradient-to-r from-white via-emerald-50/70 to-amber-50/70 p-4 shadow-sm dark:border-neutral-900 dark:from-neutral-950 dark:via-emerald-500/5 dark:to-amber-500/5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-neutral-400">
                 Tarama Modu
               </p>
-              <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+              <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-neutral-100">
                 Aynı ekranda çek ve A4 bordro tarama
               </h2>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              <p className="mt-1 text-sm text-slate-600 dark:text-neutral-400">
                 İhtiyaca göre modu seçip aynı tarama akışı içinde devam edebilirsiniz.
               </p>
             </div>
-            <div className="inline-flex rounded-xl border border-slate-200 bg-white/90 p-1 dark:border-slate-700 dark:bg-slate-900/80">
+            <div className="inline-flex rounded-xl border border-slate-200 bg-white/90 p-1 dark:border-neutral-800 dark:bg-neutral-950/80">
               {MODE_OPTIONS.map((option) => {
                 const Icon = option.icon
                 const isActive = mode === option.value
@@ -80,8 +80,8 @@ export default function UnifiedScanTab({
                     className={clsx(
                       'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition',
                       isActive
-                        ? 'bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-900'
-                        : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+                        ? 'bg-slate-900 text-white shadow-sm dark:bg-neutral-100 dark:text-neutral-900'
+                        : 'text-slate-600 hover:bg-slate-100 dark:text-neutral-300 dark:hover:bg-neutral-800',
                     )}
                   >
                     <Icon className="h-4 w-4" />
@@ -107,25 +107,25 @@ export default function UnifiedScanTab({
                   className={clsx(
                     'flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition',
                     isActive
-                      ? 'border-cyan-300 bg-cyan-50 shadow-sm dark:border-cyan-500/40 dark:bg-cyan-500/10'
-                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-900',
+                      ? 'border-emerald-300 bg-emerald-50 shadow-sm dark:border-emerald-500/40 dark:bg-emerald-500/10'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-neutral-900 dark:bg-neutral-950/50 dark:hover:bg-neutral-900',
                   )}
                 >
                   <div
                     className={clsx(
                       'mt-0.5 rounded-lg p-2',
                       isActive
-                        ? 'bg-cyan-600 text-white dark:bg-cyan-500'
-                        : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+                        ? 'bg-emerald-600 text-white dark:bg-emerald-500'
+                        : 'bg-slate-100 text-slate-600 dark:bg-neutral-900 dark:text-neutral-300',
                     )}
                   >
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-neutral-100">
                       {option.label}
                     </p>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">{option.description}</p>
+                    <p className="text-xs text-slate-600 dark:text-neutral-400">{option.description}</p>
                   </div>
                 </button>
               )

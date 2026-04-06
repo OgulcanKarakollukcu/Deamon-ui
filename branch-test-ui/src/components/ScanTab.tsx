@@ -127,7 +127,7 @@ const SCANNER_STATUS_META: Record<
   unavailable: {
     label: 'Hazır Değil',
     badgeClassName:
-      'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
+      'border-slate-300 bg-slate-100 text-slate-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300',
   },
 }
 
@@ -232,7 +232,7 @@ function getSettingStatus(verified: boolean, matches: boolean): { label: string;
     return {
       label: 'Doğrulanamadı',
       badgeClassName:
-        'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
+        'border-slate-300 bg-slate-100 text-slate-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300',
     }
   }
 
@@ -1171,18 +1171,18 @@ export default function ScanTab({
 
   return (
     <div className="space-y-6">
-      <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-neutral-900 dark:bg-neutral-950/60">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
               Adım 1
             </p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+            <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-neutral-100">
               Scanner Seçimi ve Rezervasyon
             </h2>
-            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+            <p className="mt-1 text-xs text-slate-600 dark:text-neutral-400">
               Session ID:{' '}
-              <span className="font-mono text-slate-700 dark:text-slate-300">{sessionId}</span>
+              <span className="font-mono text-slate-700 dark:text-neutral-300">{sessionId}</span>
             </p>
           </div>
 
@@ -1192,7 +1192,7 @@ export default function ScanTab({
               void handleListScanners()
             }}
             disabled={isListing || isReserving || isReleasing}
-            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800"
           >
             {isListing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             {isListing ? 'Yenileniyor…' : 'Tarayıcıları Yenile'}
@@ -1232,16 +1232,16 @@ export default function ScanTab({
                   className={`rounded-lg border p-3 transition ${
                     isSelected
                       ? 'border-amber-300 bg-amber-50/70 dark:border-amber-500/40 dark:bg-amber-500/10'
-                      : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/30'
+                      : 'border-slate-200 bg-white dark:border-neutral-900 dark:bg-neutral-950/30'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1">
-                      <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        <ScanLine className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                      <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-neutral-100">
+                        <ScanLine className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         {scanner.scanner_id}
                       </p>
-                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                      <p className="text-xs text-slate-600 dark:text-neutral-400">
                         PC: <span className="font-mono">{scanner.pc_daemon_addr || '-'}</span>
                       </p>
                     </div>
@@ -1253,10 +1253,10 @@ export default function ScanTab({
                     </span>
                   </div>
 
-                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                  <p className="mt-2 text-xs text-slate-600 dark:text-neutral-400">
                     Scan gRPC: <span className="font-mono">{scanner.scan_grpc_addr || '-'}</span>
                   </p>
-                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                  <p className="mt-1 text-xs text-slate-600 dark:text-neutral-400">
                     Son heartbeat: <span className="font-medium">{formatHeartbeat(scanner.last_heartbeat)}</span>
                   </p>
 
@@ -1270,7 +1270,7 @@ export default function ScanTab({
                       className={`rounded-md border px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
                         isSelected
                           ? 'border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200'
-                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800'
                       }`}
                     >
                       {isSelected ? 'Seçildi' : 'Seç'}
@@ -1282,7 +1282,7 @@ export default function ScanTab({
                       onClick={() => {
                         void handleReserve(scanner)
                       }}
-                      className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                      className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
                     >
                       {reserveButtonLabel}
                     </button>
@@ -1294,7 +1294,7 @@ export default function ScanTab({
         ) : null}
 
         {hasListedScanners && scanners.length === 0 && !isListing ? (
-          <p className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-400">
+          <p className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-neutral-900 dark:bg-neutral-950/40 dark:text-neutral-400">
             Kullanılabilir scanner bulunamadı.
           </p>
         ) : null}
@@ -1311,7 +1311,7 @@ export default function ScanTab({
                 void handleRelease()
               }}
               disabled={isReleasing}
-              className="rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/40 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-slate-800"
+              className="rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/40 dark:bg-neutral-950 dark:text-emerald-300 dark:hover:bg-neutral-800"
             >
               {isReleasing ? 'Bırakılıyor…' : 'Rezervasyonu Bırak'}
             </button>
@@ -1320,35 +1320,35 @@ export default function ScanTab({
       </section>
 
       <section
-        className={`space-y-4 rounded-xl border p-4 dark:border-slate-800 ${
+        className={`space-y-4 rounded-xl border p-4 dark:border-neutral-900 ${
           isReserved
-            ? 'border-slate-200 bg-white dark:bg-slate-900/70'
-            : 'border-slate-200 bg-slate-50/80 dark:bg-slate-900/30'
+            ? 'border-slate-200 bg-white dark:bg-neutral-950/70'
+            : 'border-slate-200 bg-slate-50/80 dark:bg-neutral-950/30'
         }`}
       >
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
             Adım 2
           </p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+          <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-neutral-100">
             Bordro Tarama
           </h2>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-neutral-900 dark:bg-neutral-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-neutral-400">
               Aktif Bordro
             </p>
             {activeBordroId ? (
-              <p className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-300">{activeBordroId}</p>
+              <p className="mt-1 font-mono text-xs text-slate-700 dark:text-neutral-300">{activeBordroId}</p>
             ) : (
               <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">Önce bordro seçin veya oluşturun.</p>
             )}
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-neutral-900 dark:bg-neutral-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-neutral-400">
               Rezervasyon
             </p>
             {isReserved ? (
@@ -1370,7 +1370,7 @@ export default function ScanTab({
           }}
           className="flex flex-wrap items-end gap-3"
         >
-          <label className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
+          <label className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200">
             <input
               type="checkbox"
               checked={isDuplex}
@@ -1378,13 +1378,13 @@ export default function ScanTab({
               onChange={(event) => {
                 setIsDuplex(event.target.checked)
               }}
-              className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 dark:border-slate-700 dark:bg-slate-950"
+              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-neutral-800 dark:bg-neutral-950"
             />
             {isDuplex ? 'Çift Yüz' : 'Tek Yüz'}
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-200">DPI</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200">DPI</span>
             <select
               value={scanDpi}
               disabled={isScanning}
@@ -1394,7 +1394,7 @@ export default function ScanTab({
                   setScanDpi(parsedValue)
                 }
               }}
-              className="w-28 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500"
+              className="w-28 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-500"
             >
               {SCAN_DPI_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -1405,7 +1405,7 @@ export default function ScanTab({
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-200">Renk Modu</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200">Renk Modu</span>
             <select
               value={scanColorMode}
               disabled={isScanning}
@@ -1419,7 +1419,7 @@ export default function ScanTab({
                   setScanColorMode(nextColorMode)
                 }
               }}
-              className="w-36 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500"
+              className="w-36 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-500"
             >
               {SCAN_COLOR_MODE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -1430,7 +1430,7 @@ export default function ScanTab({
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-200">Sayfa Boyutu</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200">Sayfa Boyutu</span>
             <select
               value={scanPageSize}
               disabled={isScanning}
@@ -1440,7 +1440,7 @@ export default function ScanTab({
                   setScanPageSize(nextPageSize)
                 }
               }}
-              className="w-32 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500"
+              className="w-32 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-500"
             >
               {SCAN_PAGE_SIZE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -1453,20 +1453,20 @@ export default function ScanTab({
           <button
             type="submit"
             disabled={scanDisabled || isScanning}
-            className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+            className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
           >
             {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {isScanning ? 'Bordro Taranıyor…' : 'Tara'}
           </button>
 
           {isScanning ? (
-            <p className="w-full text-xs text-cyan-700 dark:text-cyan-300">
+            <p className="w-full text-xs text-emerald-700 dark:text-emerald-300">
               {effectiveExpectedChequeCount > 0
                 ? `${sortedScannedCheques.length.toString()}/${expectedChequeCount.toString()} çek hazır, tarama devam ediyor…`
                 : 'Bordrodaki çekler taranıyor, lütfen bekleyin…'}
             </p>
           ) : (
-            <p className="w-full text-xs text-slate-500 dark:text-slate-400">
+            <p className="w-full text-xs text-slate-500 dark:text-neutral-400">
               Bu işlem tek çağrıda bordrodaki tüm çekleri tarar.
             </p>
           )}
@@ -1481,63 +1481,63 @@ export default function ScanTab({
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Tarama Sonuçları</h3>
-          <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+          <h3 className="text-base font-semibold text-slate-900 dark:text-neutral-100">Tarama Sonuçları</h3>
+          <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
             {sortedScannedCheques.length.toString()} çek
           </span>
         </div>
 
         {(isScanning || sortedScannedCheques.length > 0) ? (
-          <div className="overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-amber-50 p-4 shadow-sm dark:border-cyan-500/30 dark:from-cyan-500/10 dark:via-slate-950 dark:to-amber-500/10">
+          <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-amber-50 p-4 shadow-sm dark:border-emerald-500/30 dark:from-emerald-500/10 dark:via-neutral-950 dark:to-amber-500/10">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">
                   Canlı Akış
                 </p>
-                <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                <h4 className="text-lg font-semibold text-slate-900 dark:text-neutral-100">
                   {isScanning ? 'İlk tamamlanan çekler hazır, tarama akıyor.' : 'Tarama tamamlandı.'}
                 </h4>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="text-sm text-slate-600 dark:text-neutral-400">
                   {effectiveExpectedChequeCount > 0
                     ? `${scanCompletedCount.toString()}/${effectiveExpectedChequeCount.toString()} çek işlendi.`
                     : `${sortedScannedCheques.length.toString()} çek hazır.`}
                 </p>
                 {latestCompletedChequeNo !== null ? (
-                  <p className="text-xs font-medium text-cyan-700 dark:text-cyan-300">
+                  <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
                     Son tamamlanan çek: {latestCompletedChequeNo.toString()}
                   </p>
                 ) : null}
               </div>
               <div className="grid min-w-[220px] gap-2 sm:grid-cols-3">
-                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-neutral-900 dark:bg-neutral-950/60">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">
                     Hazır
                   </p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-neutral-100">
                     {sortedScannedCheques.length.toString()}
                   </p>
                 </div>
-                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-neutral-900 dark:bg-neutral-950/60">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">
                     Kalan
                   </p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-neutral-100">
                     {remainingChequeCount.toString()}
                   </p>
                 </div>
-                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-neutral-900 dark:bg-neutral-950/60">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">
                     İlerleme
                   </p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-neutral-100">
                     %{progressPercent.toString()}
                   </p>
                 </div>
               </div>
             </div>
-            <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-800">
+            <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200/80 dark:bg-neutral-900">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-emerald-500 transition-all duration-500"
+                className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-amber-500 to-emerald-500 transition-all duration-500"
                 style={{ width: `${progressPercent.toString()}%` }}
               />
             </div>
@@ -1545,17 +1545,17 @@ export default function ScanTab({
         ) : null}
 
         {sortedScannedCheques.length === 0 && !isScanning ? (
-          <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400">
+          <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-neutral-900 dark:bg-neutral-950/40 dark:text-neutral-400">
             Henüz çek taranmadı.
           </p>
         ) : (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-neutral-900 dark:bg-neutral-950/40">
               <div>
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <p className="text-sm font-semibold text-slate-900 dark:text-neutral-100">
                   dots.mocr Sonradan Analiz
                 </p>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
+                <p className="text-xs text-slate-600 dark:text-neutral-400">
                   Taranmış çeklerin front image&apos;ı storage üstünden okunur ve vLLM&apos;ye gönderilir.
                 </p>
               </div>
@@ -1565,7 +1565,7 @@ export default function ScanTab({
                 onClick={() => {
                   void analyzeAllScannedChequesWithDotsMocr()
                 }}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800"
               >
                 <ScanLine className={`h-4 w-4 ${isAnalyzingDotsMocrBatch ? 'animate-pulse' : ''}`} />
                 {isAnalyzingDotsMocrBatch
@@ -1638,13 +1638,13 @@ export default function ScanTab({
                   key={chequeKey}
                   className={`space-y-3 rounded-2xl border p-4 transition ${
                     selectedChequeKey === chequeKey
-                      ? 'border-cyan-300 bg-cyan-50/50 shadow-sm dark:border-cyan-500/40 dark:bg-cyan-500/5'
-                      : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40'
+                      ? 'border-emerald-300 bg-emerald-50/50 shadow-sm dark:border-emerald-500/40 dark:bg-emerald-500/5'
+                      : 'border-slate-200 bg-white dark:border-neutral-900 dark:bg-neutral-950/40'
                   }`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0 space-y-1">
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
                         Çek No {cheque.cheque_no}
                       </p>
                     </div>
@@ -1656,8 +1656,8 @@ export default function ScanTab({
                         }}
                         className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
                           selectedChequeKey === chequeKey
-                            ? 'border-cyan-300 bg-cyan-100 text-cyan-800 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300'
-                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                            ? 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300'
+                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800'
                         }`}
                       >
                         {selectedChequeKey === chequeKey ? 'Seçili' : 'Seç'}
@@ -1683,7 +1683,7 @@ export default function ScanTab({
                         onClick={() => {
                           void loadChequeStorageDetails(cheque, true)
                         }}
-                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800"
                       >
                         {isDetailsLoading ? 'Yenileniyor…' : 'Verileri Yenile'}
                       </button>
@@ -1693,7 +1693,7 @@ export default function ScanTab({
                         onClick={() => {
                           void runDotsMocrAnalysisForCheque(cheque)
                         }}
-                        className="rounded-md border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs font-medium text-cyan-800 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300 dark:hover:bg-cyan-500/20"
+                        className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
                       >
                         {dotsMocrAnalysis?.isLoading ? 'dots.mocr…' : 'dots.mocr Analiz'}
                       </button>
@@ -1725,16 +1725,16 @@ export default function ScanTab({
                         emptyLabel: hasBackPreview ? 'Arka yüz hazırlanıyor…' : 'Arka yüz yok',
                       },
                     ].map((preview) => (
-                      <div key={preview.key} className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-950/40">
+                      <div key={preview.key} className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-neutral-950/40">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
                             {preview.label}
                           </p>
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          <span className="text-[11px] text-slate-500 dark:text-neutral-400">
                             {preview.dimensionsLabel ?? preview.sizeLabel ?? '-'}
                           </span>
                         </div>
-                        <div className="flex min-h-[132px] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
+                        <div className="flex min-h-[132px] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white p-2 dark:border-neutral-900 dark:bg-neutral-950">
                           {preview.previewUrl ? (
                             <img
                               src={preview.previewUrl}
@@ -1743,8 +1743,8 @@ export default function ScanTab({
                             />
                           ) : (
                             <div className="space-y-1 text-center">
-                              <ImageIcon className="mx-auto h-6 w-6 text-slate-300 dark:text-slate-700" />
-                              <p className="text-xs text-slate-500 dark:text-slate-400">{preview.emptyLabel}</p>
+                              <ImageIcon className="mx-auto h-6 w-6 text-slate-300 dark:text-neutral-700" />
+                              <p className="text-xs text-slate-500 dark:text-neutral-400">{preview.emptyLabel}</p>
                             </div>
                           )}
                         </div>
@@ -1766,27 +1766,27 @@ export default function ScanTab({
                   </div>
 
                   <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-neutral-900 dark:bg-neutral-950/60">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                         Doğrulama Verisi
                       </p>
-                      <p className="mt-2 font-mono text-xs text-slate-500 dark:text-slate-400">micr_data</p>
-                      <p className="break-all font-mono text-xs text-slate-700 dark:text-slate-300">{micrData}</p>
-                      <p className="mt-2 font-mono text-xs text-slate-500 dark:text-slate-400">qr_data</p>
-                      <p className="break-all font-mono text-xs text-slate-700 dark:text-slate-300">{qrData}</p>
-                      <p className="mt-2 font-mono text-xs text-slate-500 dark:text-slate-400">micr_qr_match</p>
-                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      <p className="mt-2 font-mono text-xs text-slate-500 dark:text-neutral-400">micr_data</p>
+                      <p className="break-all font-mono text-xs text-slate-700 dark:text-neutral-300">{micrData}</p>
+                      <p className="mt-2 font-mono text-xs text-slate-500 dark:text-neutral-400">qr_data</p>
+                      <p className="break-all font-mono text-xs text-slate-700 dark:text-neutral-300">{qrData}</p>
+                      <p className="mt-2 font-mono text-xs text-slate-500 dark:text-neutral-400">micr_qr_match</p>
+                      <p className="text-sm font-semibold text-slate-700 dark:text-neutral-300">
                         {micrQrMatch ? 'Eşleşti' : 'Eşleşmedi'}
                       </p>
                     </div>
 
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-neutral-900 dark:bg-neutral-950/60">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                         Tarama Uyumluluğu
                       </p>
-                      <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                      <p className="mt-2 text-xs text-slate-600 dark:text-neutral-400">
                         Sayfa Sayısı:{' '}
-                        <span className="font-semibold text-slate-700 dark:text-slate-200">
+                        <span className="font-semibold text-slate-700 dark:text-neutral-200">
                           {cheque.page_count.toString()}
                         </span>
                       </p>
@@ -1794,10 +1794,10 @@ export default function ScanTab({
                         {scanSettings.map((setting) => (
                           <div
                             key={setting.key}
-                            className="rounded-md border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-950/50"
+                            className="rounded-md border border-slate-200 bg-white px-2 py-1.5 dark:border-neutral-800 dark:bg-neutral-950/50"
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                              <p className="text-xs font-semibold text-slate-700 dark:text-neutral-200">
                                 {setting.label}
                               </p>
                               <span
@@ -1806,7 +1806,7 @@ export default function ScanTab({
                                 {setting.status.label}
                               </span>
                             </div>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                            <p className="text-[11px] text-slate-600 dark:text-neutral-400">
                               İstenen: {setting.requested} | Uygulanan: {setting.effective}
                             </p>
                           </div>
@@ -1816,11 +1816,11 @@ export default function ScanTab({
                   </div>
 
                   {storageDetails?.metadataJson ? (
-                    <details className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-slate-600 dark:text-slate-300">
+                    <details className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-neutral-900 dark:bg-neutral-950/60">
+                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-slate-600 dark:text-neutral-300">
                         metadata.json
                       </summary>
-                      <pre className="mt-2 max-h-56 overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
+                      <pre className="mt-2 max-h-56 overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300">
                         {storageDetails.metadataJson}
                       </pre>
                     </details>
@@ -1831,15 +1831,15 @@ export default function ScanTab({
                     </div>
                   ) : null}
                   {dotsMocrAnalysis?.result ? (
-                    <details className="rounded-md border border-cyan-200 bg-cyan-50 p-3 dark:border-cyan-500/30 dark:bg-cyan-500/10">
-                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-cyan-800 dark:text-cyan-300">
+                    <details className="rounded-md border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-emerald-800 dark:text-emerald-300">
                         dots.mocr sonucu
                       </summary>
-                      <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-600 dark:text-slate-300">
-                        <span className="rounded-full border border-cyan-200 bg-white px-2 py-1 dark:border-cyan-500/30 dark:bg-slate-950/70">
+                      <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-600 dark:text-neutral-300">
+                        <span className="rounded-full border border-emerald-200 bg-white px-2 py-1 dark:border-emerald-500/30 dark:bg-neutral-950/70">
                           model: {dotsMocrAnalysis.result.model || '-'}
                         </span>
-                        <span className="rounded-full border border-cyan-200 bg-white px-2 py-1 dark:border-cyan-500/30 dark:bg-slate-950/70">
+                        <span className="rounded-full border border-emerald-200 bg-white px-2 py-1 dark:border-emerald-500/30 dark:bg-neutral-950/70">
                           prompt: {dotsMocrAnalysis.result.prompt_mode || '-'}
                         </span>
                       </div>
@@ -1848,23 +1848,23 @@ export default function ScanTab({
                           {dotsMocrDisplayFields.map((field) => (
                             <div
                               key={field.keyPath || field.label}
-                              className="rounded-md border border-cyan-200 bg-white p-2 dark:border-cyan-500/30 dark:bg-slate-950/70"
+                              className="rounded-md border border-emerald-200 bg-white p-2 dark:border-emerald-500/30 dark:bg-neutral-950/70"
                             >
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
                                 {field.label}
                               </p>
-                              <p className="mt-1 break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                              <p className="mt-1 break-all font-mono text-[11px] text-slate-700 dark:text-neutral-300">
                                 {field.value}
                               </p>
                             </div>
                           ))}
                         </div>
                       ) : null}
-                      <details className="mt-3 rounded-md border border-cyan-200 bg-white px-3 py-2 dark:border-cyan-500/30 dark:bg-slate-950/70">
-                        <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300">
+                      <details className="mt-3 rounded-md border border-emerald-200 bg-white px-3 py-2 dark:border-emerald-500/30 dark:bg-neutral-950/70">
+                        <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-neutral-300">
                           Ham JSON
                         </summary>
-                        <pre className="mt-2 max-h-64 overflow-auto rounded-md border border-cyan-200 bg-slate-50 p-2 text-[11px] text-slate-700 dark:border-cyan-500/30 dark:bg-slate-950 dark:text-slate-300">
+                        <pre className="mt-2 max-h-64 overflow-auto rounded-md border border-emerald-200 bg-slate-50 p-2 text-[11px] text-slate-700 dark:border-emerald-500/30 dark:bg-neutral-950 dark:text-neutral-300">
                           {dotsMocrAnalysis.result.raw_response_json || dotsMocrAnalysis.result.content || '-'}
                         </pre>
                       </details>
@@ -1877,21 +1877,21 @@ export default function ScanTab({
               ? Array.from({ length: Math.min(remainingChequeCount, 3) }, (_, index) => (
                   <article
                     key={`pending-${index.toString()}`}
-                    className="space-y-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/30"
+                    className="space-y-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4 dark:border-neutral-800 dark:bg-neutral-950/30"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="space-y-2">
-                        <div className="h-3 w-24 rounded-full bg-slate-200 dark:bg-slate-800" />
-                        <div className="h-3 w-52 rounded-full bg-slate-200 dark:bg-slate-800" />
+                        <div className="h-3 w-24 rounded-full bg-slate-200 dark:bg-neutral-900" />
+                        <div className="h-3 w-52 rounded-full bg-slate-200 dark:bg-neutral-900" />
                       </div>
-                      <Loader2 className="h-4 w-4 animate-spin text-cyan-600 dark:text-cyan-400" />
+                      <Loader2 className="h-4 w-4 animate-spin text-emerald-600 dark:text-emerald-400" />
                     </div>
                     <div className="grid gap-3 md:grid-cols-3">
-                      <div className="h-24 rounded-xl bg-slate-200/70 dark:bg-slate-800/70" />
-                      <div className="h-24 rounded-xl bg-slate-200/70 dark:bg-slate-800/70" />
-                      <div className="h-24 rounded-xl bg-slate-200/70 dark:bg-slate-800/70" />
+                      <div className="h-24 rounded-xl bg-slate-200/70 dark:bg-neutral-900/70" />
+                      <div className="h-24 rounded-xl bg-slate-200/70 dark:bg-neutral-900/70" />
+                      <div className="h-24 rounded-xl bg-slate-200/70 dark:bg-neutral-900/70" />
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <p className="text-xs text-slate-500 dark:text-neutral-400">
                       Sıradaki çekler taranıyor ve işleniyor…
                     </p>
                   </article>

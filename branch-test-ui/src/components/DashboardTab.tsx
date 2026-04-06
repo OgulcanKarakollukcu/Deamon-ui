@@ -161,7 +161,7 @@ function getStatusBadgeClass(status: PcDaemon['status']): string {
   }
 
   if (status === 'reserved') {
-    return 'border border-cyan-200 bg-cyan-100 text-cyan-700 dark:border-cyan-600/50 dark:bg-cyan-500/10 dark:text-cyan-300'
+    return 'border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-600/50 dark:bg-emerald-500/10 dark:text-emerald-300'
   }
 
   return 'border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-300'
@@ -180,7 +180,7 @@ function getReservationBadgeClass(isExpired: boolean): string {
     return 'border border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-600/50 dark:bg-rose-500/10 dark:text-rose-300'
   }
 
-  return 'border border-cyan-200 bg-cyan-100 text-cyan-700 dark:border-cyan-600/50 dark:bg-cyan-500/10 dark:text-cyan-300'
+  return 'border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-600/50 dark:bg-emerald-500/10 dark:text-emerald-300'
 }
 
 type DashboardTabProps = {
@@ -324,7 +324,7 @@ export default function DashboardTab({
     <div className="space-y-8">
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-neutral-100">
             Management Snapshot
           </h2>
           <div className="flex flex-wrap gap-2">
@@ -360,125 +360,125 @@ export default function DashboardTab({
         {supportSnapshot ? (
           <>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
-                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                   Node Role
                 </p>
-                <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-neutral-100">
                   {supportSnapshot.diagnostics.node_role || '-'}
                 </p>
               </article>
-              <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
-                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                   Online PC
                 </p>
-                <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-neutral-100">
                   {supportSnapshot.diagnostics.online_pc_daemon_count.toString()}
                 </p>
               </article>
-              <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
-                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                   Scanner
                 </p>
-                <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-neutral-100">
                   {supportSnapshot.diagnostics.scanner_count.toString()}
                 </p>
               </article>
-              <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
-                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                   Aktif Rezervasyon
                 </p>
-                <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-neutral-100">
                   {supportSnapshot.diagnostics.active_reservation_count.toString()}
                 </p>
               </article>
-              <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
-                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                   Expired Sayisi
                 </p>
-                <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-neutral-100">
                   {supportSnapshot.diagnostics.expired_reservation_count.toString()}
                 </p>
               </article>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3">
-              <article className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40">
-                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <article className="rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                   Reservation Timeout
                 </p>
-                <p className="mt-2 text-sm font-medium text-slate-900 dark:text-slate-100">
+                <p className="mt-2 text-sm font-medium text-slate-900 dark:text-neutral-100">
                   {formatSeconds(supportSnapshot.diagnostics.reservation_timeout_secs)}
                 </p>
               </article>
-              <article className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40">
-                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <article className="rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                   Heartbeat Timeout
                 </p>
-                <p className="mt-2 text-sm font-medium text-slate-900 dark:text-slate-100">
+                <p className="mt-2 text-sm font-medium text-slate-900 dark:text-neutral-100">
                   {formatSeconds(supportSnapshot.diagnostics.heartbeat_timeout_secs)}
                 </p>
               </article>
-              <article className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40">
-                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <article className="rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                   Snapshot Zamani
                 </p>
-                <p className="mt-2 text-sm font-medium text-slate-900 dark:text-slate-100">
+                <p className="mt-2 text-sm font-medium text-slate-900 dark:text-neutral-100">
                   {formatUnixTime(supportSnapshot.diagnostics.generated_at_unix)}
                 </p>
               </article>
             </div>
 
             <div className="space-y-3">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-neutral-100">
                 Rezervasyonlar
               </h3>
               {supportSnapshot.reservations.length === 0 ? (
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="text-sm text-slate-600 dark:text-neutral-400">
                   Aktif rezervasyon yok.
                 </p>
               ) : (
-                <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
-                  <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
-                    <thead className="bg-slate-50 dark:bg-slate-900">
+                <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-neutral-900">
+                  <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-neutral-900">
+                    <thead className="bg-slate-50 dark:bg-neutral-950">
                       <tr>
-                        <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                        <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                           Scanner
                         </th>
-                        <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                        <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                           Session
                         </th>
-                        <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                        <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                           Son Aktivite
                         </th>
-                        <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                        <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                           Expires
                         </th>
-                        <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                        <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                           Durum
                         </th>
-                        <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                        <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                           Aksiyon
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-950/40">
+                    <tbody className="divide-y divide-slate-200 bg-white dark:divide-neutral-900 dark:bg-neutral-950/40">
                       {supportSnapshot.reservations.map((reservation) => {
                         const resetActionId = `resetScanner:${reservation.scanner_id}`
                         const forceActionId = `resetScanner(force):${reservation.scanner_id}`
 
                         return (
                           <tr key={`${reservation.scanner_id}:${reservation.session_id}`}>
-                            <td className="px-3 py-2 align-top font-mono text-xs text-slate-700 dark:text-slate-300">
+                            <td className="px-3 py-2 align-top font-mono text-xs text-slate-700 dark:text-neutral-300">
                               {reservation.scanner_id}
                             </td>
-                            <td className="px-3 py-2 align-top font-mono text-xs text-slate-700 dark:text-slate-300">
+                            <td className="px-3 py-2 align-top font-mono text-xs text-slate-700 dark:text-neutral-300">
                               {reservation.session_id}
                             </td>
-                            <td className="px-3 py-2 align-top text-slate-700 dark:text-slate-300">
+                            <td className="px-3 py-2 align-top text-slate-700 dark:text-neutral-300">
                               {formatUnixTime(reservation.last_activity_unix)}
                             </td>
-                            <td className="px-3 py-2 align-top text-slate-700 dark:text-slate-300">
+                            <td className="px-3 py-2 align-top text-slate-700 dark:text-neutral-300">
                               {formatUnixTime(reservation.expires_at_unix)}
                             </td>
                             <td className="px-3 py-2 align-top">
@@ -496,7 +496,7 @@ export default function DashboardTab({
                                     void handleResetReservation(reservation, false)
                                   }}
                                   disabled={loading || actionKey !== null}
-                                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800"
                                 >
                                   {actionKey === resetActionId ? 'Resetleniyor...' : 'Reset'}
                                 </button>
@@ -522,7 +522,7 @@ export default function DashboardTab({
             </div>
           </>
         ) : (
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+          <p className="text-sm text-slate-600 dark:text-neutral-400">
             Management snapshot henuz alinmadi.
           </p>
         )}
@@ -530,7 +530,7 @@ export default function DashboardTab({
 
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-neutral-100">
             Aktif PC Daemon&apos;lar
           </h2>
           <button
@@ -539,7 +539,7 @@ export default function DashboardTab({
               void loadDaemons()
             }}
             disabled={loading}
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-700"
           >
             Yenile
           </button>
@@ -551,52 +551,52 @@ export default function DashboardTab({
           </p>
         ) : null}
 
-        {loading ? <p className="text-sm text-slate-600 dark:text-slate-400">Yukleniyor...</p> : null}
+        {loading ? <p className="text-sm text-slate-600 dark:text-neutral-400">Yukleniyor...</p> : null}
 
         {!loading && pcs.length === 0 ? (
-          <p className="text-sm text-slate-600 dark:text-slate-400">Bagli PC daemon bulunamadi</p>
+          <p className="text-sm text-slate-600 dark:text-neutral-400">Bagli PC daemon bulunamadi</p>
         ) : null}
 
         {pcs.length > 0 ? (
-          <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
-            <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
-              <thead className="bg-slate-50 dark:bg-slate-900">
+          <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-neutral-900">
+            <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-neutral-900">
+              <thead className="bg-slate-50 dark:bg-neutral-950">
                 <tr>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                     PC Daemon ID
                   </th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                     PC Adresi
                   </th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                     Scan gRPC Adresi
                   </th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                     Scanner&apos;lar
                   </th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                     Durum
                   </th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                     Son Heartbeat
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-950/40">
+              <tbody className="divide-y divide-slate-200 bg-white dark:divide-neutral-900 dark:bg-neutral-950/40">
                 {pcs.map((pc) => (
                   <tr key={pc.pc_daemon_id}>
                     <td className="px-3 py-2 align-top">
                       <span
                         title={pc.pc_daemon_id}
-                        className="font-mono text-xs text-slate-700 dark:text-slate-300"
+                        className="font-mono text-xs text-slate-700 dark:text-neutral-300"
                       >
                         {shortenId(pc.pc_daemon_id)}
                       </span>
                     </td>
-                    <td className="px-3 py-2 align-top font-mono text-xs text-slate-700 dark:text-slate-300">
+                    <td className="px-3 py-2 align-top font-mono text-xs text-slate-700 dark:text-neutral-300">
                       {pc.pc_daemon_addr || '-'}
                     </td>
-                    <td className="px-3 py-2 align-top font-mono text-xs text-slate-700 dark:text-slate-300">
+                    <td className="px-3 py-2 align-top font-mono text-xs text-slate-700 dark:text-neutral-300">
                       {pc.scan_grpc_addr || '-'}
                     </td>
                     <td className="px-3 py-2 align-top">
@@ -605,14 +605,14 @@ export default function DashboardTab({
                           {pc.scanner_ids.map((scannerId) => (
                             <span
                               key={scannerId}
-                              className="rounded bg-slate-100 px-2 py-1 font-mono text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                              className="rounded bg-slate-100 px-2 py-1 font-mono text-xs text-slate-700 dark:bg-neutral-900 dark:text-neutral-200"
                             >
                               {scannerId}
                             </span>
                           ))}
                         </div>
                       ) : (
-                        <span className="text-slate-500 dark:text-slate-400">-</span>
+                        <span className="text-slate-500 dark:text-neutral-400">-</span>
                       )}
                     </td>
                     <td className="px-3 py-2 align-top">
@@ -622,7 +622,7 @@ export default function DashboardTab({
                         {pc.status}
                       </span>
                     </td>
-                    <td className="px-3 py-2 align-top font-mono text-xs text-slate-700 dark:text-slate-300">
+                    <td className="px-3 py-2 align-top font-mono text-xs text-slate-700 dark:text-neutral-300">
                       {pc.last_heartbeat || UNKNOWN_HEARTBEAT}
                     </td>
                   </tr>
@@ -634,52 +634,52 @@ export default function DashboardTab({
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-neutral-100">
           Aktif Branch Daemon&apos;lar
         </h2>
 
         {!loading && branchDaemons.length === 0 ? (
-          <p className="text-sm text-slate-600 dark:text-slate-400">Bagli Branch daemon bulunamadi</p>
+          <p className="text-sm text-slate-600 dark:text-neutral-400">Bagli Branch daemon bulunamadi</p>
         ) : null}
 
         {branchDaemons.length > 0 ? (
-          <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
-            <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
-              <thead className="bg-slate-50 dark:bg-slate-900">
+          <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-neutral-900">
+            <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-neutral-900">
+              <thead className="bg-slate-50 dark:bg-neutral-950">
                 <tr>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                     Branch Daemon ID
                   </th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                     Branch Adresi
                   </th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                     Aktif PC Daemon
                   </th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                     Aktif Scanner
                   </th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                     Durum
                   </th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-neutral-300">
                     Son Kontrol
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-950/40">
+              <tbody className="divide-y divide-slate-200 bg-white dark:divide-neutral-900 dark:bg-neutral-950/40">
                 {branchDaemons.map((branchDaemon) => (
                   <tr key={branchDaemon.branch_daemon_id}>
-                    <td className="px-3 py-2 align-top font-mono text-xs text-slate-700 dark:text-slate-300">
+                    <td className="px-3 py-2 align-top font-mono text-xs text-slate-700 dark:text-neutral-300">
                       {branchDaemon.branch_daemon_id}
                     </td>
-                    <td className="px-3 py-2 align-top font-mono text-xs text-slate-700 dark:text-slate-300">
+                    <td className="px-3 py-2 align-top font-mono text-xs text-slate-700 dark:text-neutral-300">
                       {branchDaemon.branch_daemon_addr}
                     </td>
-                    <td className="px-3 py-2 align-top text-slate-700 dark:text-slate-300">
+                    <td className="px-3 py-2 align-top text-slate-700 dark:text-neutral-300">
                       {branchDaemon.active_pc_daemon_count}
                     </td>
-                    <td className="px-3 py-2 align-top text-slate-700 dark:text-slate-300">
+                    <td className="px-3 py-2 align-top text-slate-700 dark:text-neutral-300">
                       {branchDaemon.active_scanner_count}
                     </td>
                     <td className="px-3 py-2 align-top">
@@ -689,7 +689,7 @@ export default function DashboardTab({
                         {branchDaemon.status}
                       </span>
                     </td>
-                    <td className="px-3 py-2 align-top text-slate-700 dark:text-slate-300">
+                    <td className="px-3 py-2 align-top text-slate-700 dark:text-neutral-300">
                       {formatTime(branchDaemon.last_checked)}
                     </td>
                   </tr>

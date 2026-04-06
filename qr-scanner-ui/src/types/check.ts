@@ -6,7 +6,6 @@ export interface CapturedCheck {
 
 export interface CheckSession {
   checks: CapturedCheck[]
-  batchPhotoDataUrl: string | null
 }
 
 export type CheckCaptureStep =
@@ -14,5 +13,4 @@ export type CheckCaptureStep =
   | 'pre-start-info'
   | 'check-photo'
   | 'check-summary'
-  | 'batch-photo'
   | 'session-summary'

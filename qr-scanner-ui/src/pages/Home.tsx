@@ -2,7 +2,6 @@ import { useEffect, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppLayout } from '../components/AppLayout'
 import {
-  BatchPhotoStep,
   CheckPhotoStep,
   CheckSummaryStep,
   SessionSummaryStep,
@@ -54,8 +53,8 @@ export function Home() {
     goToHomeLanding,
     saveCheckPhoto,
     addAnotherCheck,
-    goToBatchPhoto,
-    saveBatchPhoto,
+    retakeCheck,
+    finish,
     reset,
   } = useCheckSession()
 
@@ -153,23 +152,13 @@ export function Home() {
             checkIndex={getSummaryCheckIndex(summaryCheck, session.checks)}
             checks={session.checks}
             onAddAnother={addAnotherCheck}
-            onFinish={goToBatchPhoto}
+            onRetakeCheck={retakeCheck}
+            onFinish={finish}
           />
         </AppLayout>
       )
       break
     }
-
-    case 'batch-photo':
-      content = (
-        <main className="h-[100dvh] w-full overflow-hidden bg-black">
-          <BatchPhotoStep
-            checkCount={session.checks.length}
-            onCapture={saveBatchPhoto}
-          />
-        </main>
-      )
-      break
 
     case 'session-summary':
       content = (
@@ -192,7 +181,11 @@ export function Home() {
           </header>
 
           <div className="mx-auto w-full max-w-3xl flex-1 px-4 pb-6 pt-20 sm:px-6 sm:pb-8">
-            <SessionSummaryStep session={session} onReset={handleSessionReset} />
+            <SessionSummaryStep
+              session={session}
+              onReset={handleSessionReset}
+              onRetakeCheck={retakeCheck}
+            />
           </div>
 
           <SiteFooter />

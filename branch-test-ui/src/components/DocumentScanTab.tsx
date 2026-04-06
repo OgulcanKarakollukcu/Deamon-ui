@@ -42,7 +42,7 @@ const SCANNER_STATUS_META: Record<
   unavailable: {
     label: 'Hazır Değil',
     badgeClassName:
-      'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
+      'border-slate-300 bg-slate-100 text-slate-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300',
   },
 }
 
@@ -184,7 +184,7 @@ function getSettingStatus(verified: boolean, matches: boolean): { label: string;
     return {
       label: 'Doğrulanamadı',
       badgeClassName:
-        'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
+        'border-slate-300 bg-slate-100 text-slate-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300',
     }
   }
 
@@ -629,17 +629,17 @@ export default function DocumentScanTab() {
 
   return (
     <div className="space-y-6">
-      <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-neutral-900 dark:bg-neutral-950/60">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
               Adım 1
             </p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+            <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-neutral-100">
               Scanner Seçimi ve Rezervasyon
             </h2>
-            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-              Session ID: <span className="font-mono text-slate-700 dark:text-slate-300">{sessionId}</span>
+            <p className="mt-1 text-xs text-slate-600 dark:text-neutral-400">
+              Session ID: <span className="font-mono text-slate-700 dark:text-neutral-300">{sessionId}</span>
             </p>
           </div>
 
@@ -649,7 +649,7 @@ export default function DocumentScanTab() {
               void handleListScanners()
             }}
             disabled={isListing || isReserving || isReleasing}
-            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800"
           >
             {isListing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             {isListing ? 'Yenileniyor...' : 'Tarayıcıları Yenile'}
@@ -678,17 +678,17 @@ export default function DocumentScanTab() {
                   key={scannerSelectionKey}
                   className={`rounded-lg border p-3 transition ${
                     isSelected
-                      ? 'border-cyan-300 bg-cyan-50/70 dark:border-cyan-500/40 dark:bg-cyan-500/10'
-                      : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/30'
+                      ? 'border-emerald-300 bg-emerald-50/70 dark:border-emerald-500/40 dark:bg-emerald-500/10'
+                      : 'border-slate-200 bg-white dark:border-neutral-900 dark:bg-neutral-950/30'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1">
-                      <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        <ScanLine className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                      <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-neutral-100">
+                        <ScanLine className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         {scanner.scanner_id}
                       </p>
-                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                      <p className="text-xs text-slate-600 dark:text-neutral-400">
                         PC: <span className="font-mono">{scanner.pc_daemon_addr || '-'}</span>
                       </p>
                     </div>
@@ -700,10 +700,10 @@ export default function DocumentScanTab() {
                     </span>
                   </div>
 
-                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                  <p className="mt-2 text-xs text-slate-600 dark:text-neutral-400">
                     Scan gRPC: <span className="font-mono">{scanner.scan_grpc_addr || '-'}</span>
                   </p>
-                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                  <p className="mt-1 text-xs text-slate-600 dark:text-neutral-400">
                     Son heartbeat: <span className="font-medium">{formatHeartbeat(scanner.last_heartbeat)}</span>
                   </p>
 
@@ -716,8 +716,8 @@ export default function DocumentScanTab() {
                       }}
                       className={`rounded-md border px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
                         isSelected
-                          ? 'border-cyan-300 bg-cyan-100 text-cyan-900 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-200'
-                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                          ? 'border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200'
+                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800'
                       }`}
                     >
                       {isSelected ? 'Seçildi' : 'Seç'}
@@ -729,7 +729,7 @@ export default function DocumentScanTab() {
                       onClick={() => {
                         void handleReserve(scanner)
                       }}
-                      className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                      className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
                     >
                       {isReservedByThisSession ? 'Rezerve Edildi' : 'Rezerve Et'}
                     </button>
@@ -741,7 +741,7 @@ export default function DocumentScanTab() {
         ) : null}
 
         {hasListedScanners && scanners.length === 0 && !isListing ? (
-          <p className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-400">
+          <p className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-neutral-900 dark:bg-neutral-950/40 dark:text-neutral-400">
             Kullanılabilir scanner bulunamadı.
           </p>
         ) : null}
@@ -758,7 +758,7 @@ export default function DocumentScanTab() {
                 void handleRelease()
               }}
               disabled={isReleasing}
-              className="rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/40 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-slate-800"
+              className="rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/40 dark:bg-neutral-950 dark:text-emerald-300 dark:hover:bg-neutral-800"
             >
               {isReleasing ? 'Bırakılıyor...' : 'Rezervasyonu Bırak'}
             </button>
@@ -767,24 +767,24 @@ export default function DocumentScanTab() {
       </section>
 
       <section
-        className={`space-y-4 rounded-xl border p-4 dark:border-slate-800 ${
+        className={`space-y-4 rounded-xl border p-4 dark:border-neutral-900 ${
           isReserved
-            ? 'border-slate-200 bg-white dark:bg-slate-900/70'
-            : 'border-slate-200 bg-slate-50/80 dark:bg-slate-900/30'
+            ? 'border-slate-200 bg-white dark:bg-neutral-950/70'
+            : 'border-slate-200 bg-slate-50/80 dark:bg-neutral-950/30'
         }`}
       >
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
             Adım 2
           </p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+          <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-neutral-100">
             Doküman Tarama
           </h2>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-200">Document ID</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200">Document ID</span>
             <input
               value={form.documentId}
               disabled={isScanning}
@@ -792,19 +792,19 @@ export default function DocumentScanTab() {
                 setForm((current) => ({ ...current, documentId: event.target.value }))
               }}
               placeholder="doc-001"
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
             />
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-200">Document Type</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200">Document Type</span>
             <select
               value={form.documentType}
               disabled={isScanning}
               onChange={(event) => {
                 setForm((current) => ({ ...current, documentType: event.target.value as DocumentType }))
               }}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
             >
               {DOCUMENT_TYPE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -815,8 +815,8 @@ export default function DocumentScanTab() {
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-200">Sheet Count</span>
-            <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
+            <span className="font-medium text-slate-700 dark:text-neutral-200">Sheet Count</span>
+            <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-neutral-800 dark:bg-neutral-950/60 dark:text-neutral-300">
               <input
                 type="checkbox"
                 checked={form.scanAllFromFeeder}
@@ -829,7 +829,7 @@ export default function DocumentScanTab() {
                     sheetCount: checked ? '' : current.sheetCount.length === 0 ? '1' : current.sheetCount,
                   }))
                 }}
-                className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 disabled:cursor-not-allowed"
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 disabled:cursor-not-allowed"
               />
               <span>Haznedeki her seyi tara</span>
             </div>
@@ -845,12 +845,12 @@ export default function DocumentScanTab() {
               placeholder={
                 form.scanAllFromFeeder ? 'Hazne modu aktif' : 'Bos = haznedeki tum kagitlar'
               }
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
             />
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-200">DPI</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200">DPI</span>
             <select
               value={form.dpi}
               disabled={isScanning}
@@ -860,7 +860,7 @@ export default function DocumentScanTab() {
                   setForm((current) => ({ ...current, dpi: nextDpi }))
                 }
               }}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
             >
               {SCAN_DPI_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -871,14 +871,14 @@ export default function DocumentScanTab() {
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-200">Renk Modu</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200">Renk Modu</span>
             <select
               value={form.colorMode}
               disabled={isScanning}
               onChange={(event) => {
                 setForm((current) => ({ ...current, colorMode: event.target.value as ScanColorMode }))
               }}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
             >
               {SCAN_COLOR_MODE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -889,14 +889,14 @@ export default function DocumentScanTab() {
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-200">Kağıt Boyutu</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200">Kağıt Boyutu</span>
             <select
               value={form.pageSize}
               disabled={isScanning}
               onChange={(event) => {
                 setForm((current) => ({ ...current, pageSize: event.target.value as ScanPageSize }))
               }}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
             >
               {SCAN_PAGE_SIZE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -907,7 +907,7 @@ export default function DocumentScanTab() {
           </label>
         </div>
 
-        <label className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
+        <label className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200">
           <input
             type="checkbox"
             checked={form.duplex}
@@ -915,7 +915,7 @@ export default function DocumentScanTab() {
             onChange={(event) => {
               setForm((current) => ({ ...current, duplex: event.target.checked }))
             }}
-            className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 dark:border-slate-700 dark:bg-slate-950"
+            className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-neutral-800 dark:bg-neutral-950"
           />
           {form.duplex ? 'Çift Yüz Tara' : 'Tek Yüz Tara'}
         </label>
@@ -927,19 +927,19 @@ export default function DocumentScanTab() {
               void handleScan()
             }}
             disabled={scanDisabled || isScanning}
-            className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+            className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
           >
             {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileScan className="h-4 w-4" />}
             {isScanning ? 'Doküman Taranıyor...' : 'Dokümanı Tara'}
           </button>
 
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-neutral-400">
             Bu çağrı seçilen scanner üzerinde kullanıcıdan alınan ayarlarla genel doküman taraması yapar.
           </p>
         </div>
 
         {isScanning ? (
-          <div className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-800 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300">
             {totalSheetCount > 0
               ? `${completedSheetCount.toString()}/${totalSheetCount.toString()} yaprak UI'a ulaştı, tarama devam ediyor...`
               : 'Tarama başladı, ilk yapraklar bekleniyor...'}
@@ -956,69 +956,69 @@ export default function DocumentScanTab() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Tarama Sonuçları</h3>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-neutral-100">Tarama Sonuçları</h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">
               Çek ekranındaki gibi solda akış, sağda sabit önizleme olacak şekilde düzenlendi.
             </p>
           </div>
 
-          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300">
             <span>{result ? `${result.pages.length.toString()} yaprak geldi` : 'Henüz sonuç yok'}</span>
             {totalSheetCount > 0 ? <span>/ {totalSheetCount.toString()} bekleniyor</span> : <span>/ hazne modu</span>}
           </div>
         </div>
 
         {(isScanning || result !== null) ? (
-          <div className="overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-sky-50 p-4 shadow-sm dark:border-cyan-500/30 dark:from-cyan-500/10 dark:via-slate-950 dark:to-sky-500/10">
+          <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-amber-50 p-4 shadow-sm dark:border-emerald-500/30 dark:from-emerald-500/10 dark:via-neutral-950 dark:to-amber-500/10">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">
                   Canlı Akış
                 </p>
-                <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                <h4 className="text-lg font-semibold text-slate-900 dark:text-neutral-100">
                   {isScanning ? 'İlk tamamlanan yapraklar hazır, tarama akıyor.' : 'Doküman taraması tamamlandı.'}
                 </h4>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="text-sm text-slate-600 dark:text-neutral-400">
                   {totalSheetCount > 0
                     ? `${scannedPageCount.toString()}/${totalSheetCount.toString()} yaprak işlendi.`
                     : `${scannedPageCount.toString()} yaprak işlendi, toplam hazneden okunuyor.`}
                 </p>
                 {selectedPage ? (
-                  <p className="text-xs font-medium text-cyan-700 dark:text-cyan-300">
+                  <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
                     Aktif seçim: Yaprak {(selectedPage.sheetIndex + 1).toString()} {selectedPage.side === 'back' ? 'arka' : 'ön'}
                   </p>
                 ) : null}
               </div>
               <div className="grid min-w-[220px] gap-2 sm:grid-cols-3">
-                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-neutral-900 dark:bg-neutral-950/60">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">
                     Hazır
                   </p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-neutral-100">
                     {scannedPageCount.toString()}
                   </p>
                 </div>
-                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-neutral-900 dark:bg-neutral-950/60">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">
                     Kalan
                   </p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-neutral-100">
                     {remainingPageCount === null ? '-' : remainingPageCount.toString()}
                   </p>
                 </div>
-                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 dark:border-neutral-900 dark:bg-neutral-950/60">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">
                     İlerleme
                   </p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-neutral-100">
                     %{progressPercent.toString()}
                   </p>
                 </div>
               </div>
             </div>
-            <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-800">
+            <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200/80 dark:bg-neutral-900">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-emerald-500 transition-all duration-500"
+                className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-amber-500 to-emerald-500 transition-all duration-500"
                 style={{ width: `${progressPercent.toString()}%` }}
               />
             </div>
@@ -1030,38 +1030,38 @@ export default function DocumentScanTab() {
             {result ? (
               <>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40">
-                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
                       Document ID
                     </p>
-                    <p className="mt-2 break-all font-mono text-sm text-slate-900 dark:text-slate-100">
+                    <p className="mt-2 break-all font-mono text-sm text-slate-900 dark:text-neutral-100">
                       {result.document_id}
                     </p>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40">
-                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
                       Taranan
                     </p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-neutral-100">
                       {result.pages.length.toString()} / {result.sheet_count.toString()} yaprak
                     </p>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40">
-                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
                       Etkin DPI
                     </p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-neutral-100">
                       {result.effective_dpi.toString()}
                     </p>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40">
-                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
                       Mod
                     </p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-neutral-100">
                       {formatScanColorModeLabel(result.effective_color_mode)} /{' '}
                       {formatPageSizeLabel(result.page_size)}
                     </p>
@@ -1073,20 +1073,20 @@ export default function DocumentScanTab() {
                     {effectiveSettingRows.map((row) => (
                       <article
                         key={row.key}
-                        className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40"
+                        className="rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-900 dark:bg-neutral-950/40"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{row.label}</p>
+                          <p className="text-sm font-semibold text-slate-900 dark:text-neutral-100">{row.label}</p>
                           <span
                             className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-medium ${row.status.badgeClassName}`}
                           >
                             {row.status.label}
                           </span>
                         </div>
-                        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">İstenen</p>
-                        <p className="text-sm text-slate-700 dark:text-slate-200">{row.requested}</p>
-                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Uygulanan</p>
-                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{row.effective}</p>
+                        <p className="mt-3 text-xs text-slate-500 dark:text-neutral-400">İstenen</p>
+                        <p className="text-sm text-slate-700 dark:text-neutral-200">{row.requested}</p>
+                        <p className="mt-2 text-xs text-slate-500 dark:text-neutral-400">Uygulanan</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-neutral-100">{row.effective}</p>
                       </article>
                     ))}
                   </div>
@@ -1104,16 +1104,16 @@ export default function DocumentScanTab() {
                         key={page.sheet_index}
                         className={`rounded-2xl border p-4 transition ${
                           isSelectedFront || isSelectedBack
-                            ? 'border-cyan-300 bg-cyan-50/50 shadow-sm dark:border-cyan-500/40 dark:bg-cyan-500/5'
-                            : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40'
+                            ? 'border-emerald-300 bg-emerald-50/50 shadow-sm dark:border-emerald-500/40 dark:bg-emerald-500/5'
+                            : 'border-slate-200 bg-white dark:border-neutral-900 dark:bg-neutral-950/40'
                         }`}
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="min-w-0 space-y-1">
-                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
                               Yaprak {(page.sheet_index + 1).toString()}
                             </p>
-                            <p className="text-sm text-slate-700 dark:text-slate-300">
+                            <p className="text-sm text-slate-700 dark:text-neutral-300">
                               {page.back_image_path ? 'Ön ve arka görüntü hazır.' : 'Yalnızca ön görüntü mevcut.'}
                             </p>
                           </div>
@@ -1126,8 +1126,8 @@ export default function DocumentScanTab() {
                               }}
                               className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
                                 isSelectedFront
-                                  ? 'border-cyan-300 bg-cyan-100 text-cyan-800 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300'
-                                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                                  ? 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800'
                               }`}
                             >
                               Önizle Ön
@@ -1141,35 +1141,35 @@ export default function DocumentScanTab() {
                                 }}
                                 className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
                                   isSelectedBack
-                                    ? 'border-cyan-300 bg-cyan-100 text-cyan-800 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300'
-                                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                                    ? 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800'
                                 }`}
                               >
                                 Önizle Arka
                               </button>
                             ) : null}
 
-                            <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
                               {page.back_image_path ? 'Ön + Arka' : 'Sadece Ön'}
                             </span>
                           </div>
                         </div>
 
                         <div className="mt-3 grid gap-3 md:grid-cols-2">
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-neutral-900 dark:bg-neutral-950/60">
+                            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                               Front
                             </p>
-                            <p className="mt-2 break-all font-mono text-xs text-slate-700 dark:text-slate-300">
+                            <p className="mt-2 break-all font-mono text-xs text-slate-700 dark:text-neutral-300">
                               {page.front_image_path}
                             </p>
                           </div>
 
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-neutral-900 dark:bg-neutral-950/60">
+                            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                               Back
                             </p>
-                            <p className="mt-2 break-all font-mono text-xs text-slate-700 dark:text-slate-300">
+                            <p className="mt-2 break-all font-mono text-xs text-slate-700 dark:text-neutral-300">
                               {page.back_image_path ?? '-'}
                             </p>
                           </div>
@@ -1180,7 +1180,7 @@ export default function DocumentScanTab() {
                 </div>
               </>
             ) : (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500 dark:border-neutral-800 dark:bg-neutral-950/40 dark:text-neutral-400">
                 {isScanning
                   ? 'Tarama başladı. İlk tamamlanan yaprak geldiğinde soldaki akış listesi dolacak.'
                   : 'Tarama sonuçları burada listelenecek.'}
@@ -1189,35 +1189,35 @@ export default function DocumentScanTab() {
           </div>
 
           <aside className="xl:sticky xl:top-4">
-            <section className="min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
-              <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+            <section className="min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-neutral-900 dark:bg-neutral-950/50">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-neutral-900">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">
                     Sabit Önizleme
                   </p>
-                  <h4 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
+                  <h4 className="mt-1 text-base font-semibold text-slate-900 dark:text-neutral-100">
                     {selectedPage
                       ? `Yaprak ${(selectedPage.sheetIndex + 1).toString()} ${selectedPage.side === 'back' ? 'Arka' : 'Ön'}`
                       : 'Önizleme Hazır Değil'}
                   </h4>
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
                   <ImageIcon className="h-3.5 w-3.5" />
                   Rahat İnceleme
                 </span>
               </div>
 
               <div className="space-y-4 p-4">
-                <div className="flex min-h-[380px] items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+                <div className="flex min-h-[380px] items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-4 dark:border-neutral-900 dark:bg-neutral-950/50">
                   {selectedDocumentPage === null || selectedPage === null ? (
                     <div className="space-y-2 text-center">
-                      <ImageIcon className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-700" />
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                      <ImageIcon className="mx-auto h-8 w-8 text-slate-300 dark:text-neutral-700" />
+                      <p className="text-sm text-slate-500 dark:text-neutral-400">
                         Önizleme için soldan bir yaprak seçin.
                       </p>
                     </div>
                   ) : viewer.isLoading ? (
-                    <div className="h-72 w-full animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+                    <div className="h-72 w-full animate-pulse rounded-xl bg-slate-200 dark:bg-neutral-900" />
                   ) : viewer.error ? (
                     <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
                       {viewer.error}
@@ -1233,18 +1233,18 @@ export default function DocumentScanTab() {
                     />
                   ) : (
                     <div className="space-y-2 text-center">
-                      <ImageIcon className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-700" />
-                      <p className="text-sm text-slate-500 dark:text-slate-400">Görsel önizlemesi hazır değil.</p>
+                      <ImageIcon className="mx-auto h-8 w-8 text-slate-300 dark:text-neutral-700" />
+                      <p className="text-sm text-slate-500 dark:text-neutral-400">Görsel önizlemesi hazır değil.</p>
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">
                       Seçili Görsel
                     </p>
-                    <p className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">
+                    <p className="mt-1 text-sm font-medium text-slate-900 dark:text-neutral-100">
                       {selectedPage
                         ? `Yaprak ${(selectedPage.sheetIndex + 1).toString()} ${selectedPage.side === 'back' ? 'Arka' : 'Ön'}`
                         : '-'}
@@ -1252,10 +1252,10 @@ export default function DocumentScanTab() {
                   </div>
 
                   {viewerInfo.length > 0 ? (
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Görsel: {viewerInfo.join(' | ')}</p>
+                    <p className="text-xs text-slate-500 dark:text-neutral-400">Görsel: {viewerInfo.join(' | ')}</p>
                   ) : null}
 
-                  <p className="break-all font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                  <p className="break-all font-mono text-[11px] text-slate-500 dark:text-neutral-400">
                     {selectedDocumentPage
                       ? selectedPage?.side === 'back'
                         ? selectedDocumentPage.back_image_path ?? '-'
@@ -1271,4 +1271,3 @@ export default function DocumentScanTab() {
     </div>
   )
 }
-

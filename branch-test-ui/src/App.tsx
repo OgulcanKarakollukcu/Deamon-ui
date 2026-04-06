@@ -4,6 +4,7 @@ import ChequeDebugTab from './components/ChequeDebugTab'
 import CustomerInviteTab from './components/CustomerInviteTab'
 import DashboardTab from './components/DashboardTab'
 import DocumentScanTab from './components/DocumentScanTab'
+import IntelligenceTab from './components/IntelligenceTab'
 import LogsTab from './components/LogsTab'
 import { TabLayout } from './components/TabLayout'
 import { LogContext } from './context/LogContext'
@@ -119,10 +120,10 @@ function App() {
         contentDisabled={!daemonOnline}
         contentOverlay={
           daemonOnline ? null : (
-            <div className="flex h-full items-start justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
-              <div className="inline-flex items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-200/90 px-4 py-2 text-sm font-medium text-amber-950 shadow-md dark:border-amber-300/20 dark:bg-amber-500/20 dark:text-amber-100">
+            <div className="flex h-full items-start justify-center bg-[#050705]/65 p-4 backdrop-blur-sm">
+              <div className="inline-flex items-center gap-2 rounded-xl border border-[#DDEFE3] bg-white/95 px-4 py-2 text-sm font-medium text-[#4B4F54] shadow-[0_6px_20px_rgba(0,122,61,0.12)] dark:border-[#2c4335] dark:bg-[#132017] dark:text-[#e3ebe6]">
                 <span
-                  className={`h-4 w-4 rounded-full border-2 border-amber-500 border-t-transparent ${
+                  className={`h-4 w-4 rounded-full border-2 border-[#007A3D] border-t-transparent ${
                     checkingDaemon ? 'animate-spin' : 'animate-pulse'
                   }`}
                   aria-hidden="true"
@@ -147,6 +148,7 @@ function App() {
         documentScanContent={<DocumentScanTab />}
         chequeDebugContent={<ChequeDebugTab />}
         customerLinkContent={<CustomerInviteTab />}
+        intelligenceContent={<IntelligenceTab />}
         logsContent={<LogsTab />}
       />
     </LogContext.Provider>

@@ -16,7 +16,6 @@ export interface SubmitInviteCheckPayload {
 
 export interface SubmitInviteSessionPayload {
   checks: SubmitInviteCheckPayload[]
-  batch_image_data_url: string | null
   completed_at: string
   session_metadata?: Record<string, unknown>
 }
