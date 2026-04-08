@@ -373,8 +373,7 @@ export function useScannerCamera(): ScannerCameraState {
         if (streamRef.current) {
           syncTorchState(streamRef.current)
         }
-      } catch (flashError: unknown) {
-        console.warn('Torch toggle failed:', flashError)
+      } catch {
         if (streamRef.current) {
           syncTorchState(streamRef.current)
         }

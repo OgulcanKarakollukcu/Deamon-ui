@@ -7,5 +7,4 @@ export async function runZxingSmokeTest(): Promise<void> {
   )
 
   await readBarcodesFromImageData(imageData)
-  console.log('zxing-wasm loaded ok')
 }

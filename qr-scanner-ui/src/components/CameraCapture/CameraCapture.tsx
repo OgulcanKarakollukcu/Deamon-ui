@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useEdgeDetection } from '../../hooks/useEdgeDetection'
 import {
   captureFullFrame,
   useImageProcessing,
 } from '../../hooks/useImageProcessing'
 import { useQrDecoder } from '../../hooks/useQrDecoder'
+import { analyzeUploadedCheckImage } from '../../services/uploadedCheckAnalyzer'
 import { useScannerCamera } from '../../hooks/useScannerCamera'
 import type { CaptureDraft, EnhancementMode, ProcessedCapture } from '../../types/scanner'
 import { createGuideCorners, quadEdgeLengths } from '../../utils/scanner/geometry'
@@ -52,6 +53,8 @@ export function CameraCapture({
   const capturePendingRef = useRef(false)
   const localCornersRef = useRef(captureDraft?.corners ?? null)
   const qrCanvasRef = useRef<HTMLCanvasElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isUploadAnalyzing, setIsUploadAnalyzing] = useState(false)
 
   const {
     videoRef,
@@ -348,6 +351,73 @@ export function CameraCapture({
     })
   }, [onError, restartCamera])
 
+  const handlePickImage = useCallback((): void => {
+    fileInputRef.current?.click()
+  }, [])
+
+  const handleFileUpload = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
+      const file = event.target.files?.[0]
+      event.target.value = ''
+
+      if (!file) {
+        return
+      }
+
+      if (!file.type.startsWith('image/')) {
+        const message = 'Lutfen gecerli bir resim dosyasi yukleyin.'
+        setCaptureError(message)
+        if (onError) {
+          onError(message)
+        }
+        return
+      }
+
+      setIsUploadAnalyzing(true)
+      setCaptureError(null)
+
+      try {
+        const analysis = await analyzeUploadedCheckImage(file)
+        if (!analysis.draft.previewDataURL || !analysis.draft.width || !analysis.draft.height) {
+          const message = 'Yuklenen resim islenemedi. Baska bir resim deneyin.'
+          setCaptureError(message)
+          if (onError) {
+            onError(message)
+          }
+          return
+        }
+
+        const initialCorners =
+          analysis.draft.detectedCorners ?? createGuideCorners(analysis.draft.width, analysis.draft.height)
+
+        setProcessedCapture(null)
+        setRawCaptureDataUrl(null)
+        setCaptureDraft({
+          sourceCanvas: analysis.draft.sourceCanvas,
+          previewDataURL: analysis.draft.previewDataURL,
+          width: analysis.draft.width,
+          height: analysis.draft.height,
+          corners: initialCorners,
+        })
+        setLiveQrValue(analysis.qrValue)
+        setCaptureState('adjusting')
+
+        if (!analysis.draft.detectedCorners) {
+          setCaptureError('Cek otomatik algilanamadi. Koseleri elle duzeltin.')
+        }
+      } catch (error: unknown) {
+        const message = resolveCaptureErrorMessage(error)
+        setCaptureError(message)
+        if (onError) {
+          onError(message)
+        }
+      } finally {
+        setIsUploadAnalyzing(false)
+      }
+    },
+    [onError],
+  )
+
   if (captureState === 'error') {
     return (
       <section className="flex h-[100dvh] w-full items-center justify-center bg-black px-6">
@@ -402,7 +472,7 @@ export function CameraCapture({
 
   if (captureState === 'adjusting' && captureDraft) {
     return (
-      <section className="h-[100dvh] w-full overflow-hidden bg-black">
+      <section className="relative h-[100dvh] w-full overflow-hidden bg-black">
         <AdjustScreen
           imageSrc={captureDraft.previewDataURL}
           sourceWidth={captureDraft.width}
@@ -414,6 +484,11 @@ export function CameraCapture({
             void handleConfirmAdjustment(cornersValue)
           }}
         />
+        {captureError ? (
+          <div className="absolute left-4 right-4 top-4 z-30 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+            {captureError}
+          </div>
+        ) : null}
       </section>
     )
   }
@@ -531,6 +606,26 @@ export function CameraCapture({
       />
 
       <canvas ref={qrCanvasRef} className="hidden" aria-hidden="true" />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(event) => {
+          void handleFileUpload(event)
+        }}
+      />
+
+      <div className="absolute bottom-28 left-1/2 z-20 -translate-x-1/2">
+        <button
+          type="button"
+          className="min-h-[42px] rounded-xl border border-white/30 bg-black/45 px-4 text-sm font-semibold text-white backdrop-blur transition-colors hover:bg-black/60 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={handlePickImage}
+          disabled={isUploadAnalyzing}
+        >
+          {isUploadAnalyzing ? 'Resim analiz ediliyor...' : 'Resim Yukle'}
+        </button>
+      </div>
 
       {captureError ? (
         <div className="absolute left-4 right-4 top-4 z-30 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">

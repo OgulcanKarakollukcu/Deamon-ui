@@ -13,6 +13,7 @@ import type { LogEntry, Tab } from './types'
 
 const THEME_STORAGE_KEY = 'branch-ui-theme'
 type ThemeMode = 'dark' | 'light'
+const OFFLINE_AVAILABLE_TABS: ReadonlySet<Tab> = new Set(['customer-link', 'intelligence'])
 
 function getInitialThemeMode(): ThemeMode {
   const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
@@ -34,6 +35,8 @@ function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => getInitialThemeMode())
   const nextLogIdRef = useRef<number>(1)
   const isDarkMode = themeMode === 'dark'
+  const isCurrentTabOfflineAvailable = OFFLINE_AVAILABLE_TABS.has(activeTab)
+  const contentDisabled = !daemonOnline && !isCurrentTabOfflineAvailable
 
   const addLog = useCallback((level: LogEntry['level'], msg: string) => {
     const entry: LogEntry = {
@@ -117,9 +120,9 @@ function App() {
         onThemeToggle={() => {
           setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'))
         }}
-        contentDisabled={!daemonOnline}
+        contentDisabled={contentDisabled}
         contentOverlay={
-          daemonOnline ? null : (
+          contentDisabled ? (
             <div className="flex h-full items-start justify-center bg-[#050705]/65 p-4 backdrop-blur-sm">
               <div className="inline-flex items-center gap-2 rounded-xl border border-[#DDEFE3] bg-white/95 px-4 py-2 text-sm font-medium text-[#4B4F54] shadow-[0_6px_20px_rgba(0,122,61,0.12)] dark:border-[#2c4335] dark:bg-[#132017] dark:text-[#e3ebe6]">
                 <span
@@ -128,10 +131,13 @@ function App() {
                   }`}
                   aria-hidden="true"
                 />
-                <span>Branch Daemon&apos;a bağlanılamıyor, yeniden deneniyor...</span>
+                <span>
+                  Branch Daemon&apos;a bağlanılamıyor. Müşteri Link ve İstihbarat sekmeleri
+                  kullanılabilir, diğer sekmeler için yeniden deneniyor...
+                </span>
               </div>
             </div>
-          )
+          ) : null
         }
         dashboardContent={
           <DashboardTab

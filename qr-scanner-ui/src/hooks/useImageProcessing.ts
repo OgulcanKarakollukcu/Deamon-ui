@@ -123,8 +123,7 @@ export function useImageProcessing(
         if (enhancementMode === 'bw') {
           try {
             cvLib = await loadOpenCV()
-          } catch (opencvError: unknown) {
-            console.warn('OpenCV B&W pipeline unavailable, using JS fallback:', opencvError)
+          } catch {
           }
         }
 
@@ -136,8 +135,7 @@ export function useImageProcessing(
             destinationWidth,
             destinationHeight,
           )
-        } catch (dewarpError: unknown) {
-          console.warn('Primary dewarp failed, falling back to source frame:', dewarpError)
+        } catch {
           rawCanvas = document.createElement('canvas')
           rawCanvas.width = sourceCanvas.width
           rawCanvas.height = sourceCanvas.height
@@ -269,21 +267,40 @@ function dewarpFallback(
   for (let dy = 0; dy < destinationHeight; dy += 1) {
     for (let dx = 0; dx < destinationWidth; dx += 1) {
       const sourcePoint = applyHomography(homography, dx, dy)
-      const sourceX = Math.round(sourcePoint.x)
-      const sourceY = Math.round(sourcePoint.y)
+      const sourceX = sourcePoint.x
+      const sourceY = sourcePoint.y
 
       if (
         sourceX >= 0 &&
-        sourceX < sourceWidth &&
+        sourceX < sourceWidth - 1 &&
         sourceY >= 0 &&
-        sourceY < sourceHeight
+        sourceY < sourceHeight - 1
       ) {
-        const sourceIndex = (sourceY * sourceWidth + sourceX) * 4
         const destinationIndex = (dy * destinationWidth + dx) * 4
 
-        destinationData[destinationIndex] = sourceData[sourceIndex]
-        destinationData[destinationIndex + 1] = sourceData[sourceIndex + 1]
-        destinationData[destinationIndex + 2] = sourceData[sourceIndex + 2]
+        // Bilinear sampling to avoid blocky/nearest-neighbor artifacts in dewarped result.
+        const x0 = Math.floor(sourceX)
+        const y0 = Math.floor(sourceY)
+        const x1 = x0 + 1
+        const y1 = y0 + 1
+        const fx = sourceX - x0
+        const fy = sourceY - y0
+
+        const idx00 = (y0 * sourceWidth + x0) * 4
+        const idx10 = (y0 * sourceWidth + x1) * 4
+        const idx01 = (y1 * sourceWidth + x0) * 4
+        const idx11 = (y1 * sourceWidth + x1) * 4
+
+        for (let channel = 0; channel < 3; channel += 1) {
+          const p00 = sourceData[idx00 + channel]
+          const p10 = sourceData[idx10 + channel]
+          const p01 = sourceData[idx01 + channel]
+          const p11 = sourceData[idx11 + channel]
+
+          const top = p00 * (1 - fx) + p10 * fx
+          const bottom = p01 * (1 - fx) + p11 * fx
+          destinationData[destinationIndex + channel] = top * (1 - fy) + bottom * fy
+        }
         destinationData[destinationIndex + 3] = 255
       }
     }

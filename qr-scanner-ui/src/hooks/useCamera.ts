@@ -105,9 +105,8 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement>): UseCameraResul
         })
         // Uygulama başarılıysa çağırana başarı bilgisi dönüyoruz.
         return true
-      } catch (trackConstraintError: unknown) {
+      } catch {
         // Cihaz desteklemeyen bir constraint alırsa sessizce false dönüp UI'ı koruyoruz.
-        console.warn('camera constraint apply failed', trackConstraintError)
         return false
       }
     },

@@ -35,14 +35,7 @@ function App() {
   const { pathname } = useLocation()
 
   useEffect(() => {
-    void runZxingSmokeTest().catch((error: unknown) => {
-      if (error instanceof Error) {
-        console.error('zxing smoke test failed:', error.message)
-        return
-      }
-
-      console.error('zxing smoke test failed with unknown error')
-    })
+    void runZxingSmokeTest().catch(() => undefined)
   }, [])
 
   useEffect(() => {

@@ -80,8 +80,7 @@ export function useOrientationLockAssist(active: boolean): OrientationLockAssist
           ? 'lock_likely'
           : 'rotate_more',
       )
-    } catch (error: unknown) {
-      console.warn('Orientation lock check failed:', error)
+    } catch {
       setCheckState('idle')
     }
   }, [active, checkState, sensorSupport])

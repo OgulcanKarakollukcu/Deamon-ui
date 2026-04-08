@@ -6,7 +6,6 @@ const DETECTION_WIDTH = 640
 const DETECTION_INTERVAL_MS = 120
 const STABILITY_THRESHOLD_MS = 500
 const STABILITY_PIXEL_THRESHOLD = 8
-const WORKER_LOG_PREFIX = '[scanner-worker]'
 
 type WorkerEngine = 'opencv' | 'fallback'
 
@@ -97,8 +96,7 @@ export function useEdgeDetection(
 
     try {
       worker = createScannerWorker()
-    } catch (workerError: unknown) {
-      console.error(`${WORKER_LOG_PREFIX} failed to create`, workerError)
+    } catch {
       return
     }
 
@@ -106,24 +104,15 @@ export function useEdgeDetection(
       const payload = event.data
 
       if (payload.type === 'LOG') {
-        const logger =
-          payload.level === 'error'
-            ? console.error
-            : payload.level === 'warn'
-              ? console.warn
-              : console.info
-        logger(`${WORKER_LOG_PREFIX} ${payload.message}`, payload.details ?? {})
         return
       }
 
       if (payload.type === 'ERROR') {
         pendingFrameRef.current = false
-        console.error(`${WORKER_LOG_PREFIX} ${payload.message}`, payload.details ?? {})
         return
       }
 
       if (payload.type === 'READY') {
-        console.info(`${WORKER_LOG_PREFIX} ready`, { engine: payload.engine })
         setWorkerReady(true)
         setWorkerEngine(payload.engine)
         return
@@ -183,27 +172,17 @@ export function useEdgeDetection(
 
     worker.onmessageerror = (errorEvent: MessageEvent): void => {
       pendingFrameRef.current = false
-      console.error(`${WORKER_LOG_PREFIX} message error`, {
-        data: errorEvent.data,
-        type: errorEvent.type,
-      })
+      void errorEvent
     }
 
     worker.onerror = (errorEvent: ErrorEvent): void => {
       pendingFrameRef.current = false
-      console.error(`${WORKER_LOG_PREFIX} worker error`, {
-        message: errorEvent.message,
-        filename: errorEvent.filename,
-        lineno: errorEvent.lineno,
-        colno: errorEvent.colno,
-        error: errorEvent.error,
-      })
+      void errorEvent
     }
 
     workerRef.current = worker
     setWorkerReady(false)
     setWorkerEngine(null)
-    console.info(`${WORKER_LOG_PREFIX} init`)
     worker.postMessage({ type: 'INIT' })
 
     return () => {

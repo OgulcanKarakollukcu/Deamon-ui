@@ -134,9 +134,8 @@ export function useQrDecoder(options: UseQrDecoderOptions): void {
             onDetected(firstResult.text)
             return
           }
-        } catch (decodeError: unknown) {
-          // Decode sırasında hata olursa loglayıp döngüyü tamamen öldürmüyoruz.
-          console.error('QR decode loop error:', decodeError)
+        } catch {
+          // Decode sırasında hata olursa döngüyü tamamen öldürmüyoruz.
         } finally {
           // Bu frame decode işi bitti; kilidi kaldırıyoruz.
           isDecoding = false
