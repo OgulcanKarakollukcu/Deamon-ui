@@ -5,11 +5,25 @@ export interface CornerPoint {
 
 export type CornerQuad = [CornerPoint, CornerPoint, CornerPoint, CornerPoint]
 
+export interface BoundingBox {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
 export interface GuideRegion {
   x: number
   y: number
   width: number
   height: number
+}
+
+export interface TrackedCheque {
+  id: number
+  corners: CornerQuad
+  bbox: BoundingBox
+  confidence: number
 }
 
 export interface CameraErrorState {

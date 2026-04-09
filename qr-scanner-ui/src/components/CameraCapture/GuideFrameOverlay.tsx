@@ -1,8 +1,9 @@
 import { memo, useEffect, useRef } from 'react'
-import type { CornerQuad } from '../../types/scanner'
+import type { CornerQuad, TrackedCheque } from '../../types/scanner'
 import { createGuideCorners, scaleCornersToCover } from '../../utils/scanner/geometry'
 
 const DETECTION_WIDTH = 640
+const GUIDE_HEIGHT_RATIO = 0.6
 
 type GuideFrameTone = 'idle' | 'detecting' | 'ready' | 'warning'
 
@@ -12,6 +13,8 @@ export interface GuideFrameOverlayProps {
   displayWidth: number
   displayHeight: number
   tone: GuideFrameTone
+  trackedCheques: TrackedCheque[]
+  selectedTrackId: number | null
 }
 
 export const GuideFrameOverlay = memo(function GuideFrameOverlay({
@@ -20,6 +23,8 @@ export const GuideFrameOverlay = memo(function GuideFrameOverlay({
   displayWidth,
   displayHeight,
   tone,
+  trackedCheques,
+  selectedTrackId,
 }: GuideFrameOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
@@ -52,7 +57,7 @@ export const GuideFrameOverlay = memo(function GuideFrameOverlay({
         displayWidth,
         displayHeight,
         targetDisplayWidth: displayWidth,
-        targetDisplayHeight: displayWidth * 0.7,
+        targetDisplayHeight: displayWidth * GUIDE_HEIGHT_RATIO,
       }),
       detectionWidth,
       detectionHeight,
@@ -69,8 +74,25 @@ export const GuideFrameOverlay = memo(function GuideFrameOverlay({
     context.clearRect(0, 0, displayWidth, displayHeight)
 
     drawGuideMask(context, displayWidth, displayHeight, scaledGuide)
+    drawSelectedTrackedCheque(
+      context,
+      trackedCheques,
+      selectedTrackId,
+      detectionWidth,
+      detectionHeight,
+      displayWidth,
+      displayHeight,
+    )
     drawGuideFrame(context, scaledGuide, tone)
-  }, [detectionHeight, detectionWidth, displayHeight, displayWidth, tone])
+  }, [
+    detectionHeight,
+    detectionWidth,
+    displayHeight,
+    displayWidth,
+    selectedTrackId,
+    tone,
+    trackedCheques,
+  ])
 
   return <canvas ref={canvasRef} className="corner-overlay corner-overlay-passive" />
 })
@@ -123,6 +145,50 @@ function drawGuideFrame(
   drawCornerAccent(context, topRight, [-1, 0], [0, 1], cornerLength)
   drawCornerAccent(context, bottomRight, [-1, 0], [0, -1], cornerLength)
   drawCornerAccent(context, bottomLeft, [1, 0], [0, -1], cornerLength)
+}
+
+function drawSelectedTrackedCheque(
+  context: CanvasRenderingContext2D,
+  trackedCheques: TrackedCheque[],
+  selectedTrackId: number | null,
+  detectionWidth: number,
+  detectionHeight: number,
+  displayWidth: number,
+  displayHeight: number,
+): void {
+  if (selectedTrackId === null) {
+    return
+  }
+
+  const selectedTrack = trackedCheques.find((track) => track.id === selectedTrackId)
+  if (!selectedTrack) {
+    return
+  }
+
+  const scaledCorners = scaleCornersToCover(
+    selectedTrack.corners,
+    detectionWidth,
+    detectionHeight,
+    displayWidth,
+    displayHeight,
+  )
+
+  if (!scaledCorners) {
+    return
+  }
+
+  context.save()
+  context.beginPath()
+  context.moveTo(scaledCorners[0].x, scaledCorners[0].y)
+  scaledCorners.slice(1).forEach((point) => context.lineTo(point.x, point.y))
+  context.closePath()
+  context.fillStyle = 'rgba(34, 197, 94, 0.08)'
+  context.fill()
+  context.strokeStyle = 'rgba(34, 197, 94, 0.98)'
+  context.lineWidth = 3
+  context.setLineDash([])
+  context.stroke()
+  context.restore()
 }
 
 function drawCornerAccent(

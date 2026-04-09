@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react'
-import type { FlashModeOption } from '../../types/scanner'
+import type { FlashModeOption, TrackedCheque } from '../../types/scanner'
 import { useOrientationLockAssist } from '../../hooks/useOrientationLockAssist'
 import CameraSelect from './CameraSelect'
 import GuideFrameOverlay from './GuideFrameOverlay'
@@ -31,6 +31,8 @@ export interface ScannerViewProps {
   isGuideAligned: boolean
   workerEngine: 'opencv' | 'fallback' | 'yolo' | null
   detectionEngine: 'cv' | 'yolo'
+  trackedCheques?: TrackedCheque[]
+  selectedTrackId?: number | null
   onToggleDetectionEngine: () => void
   canCapture: boolean
   orientationPrompt: string | null
@@ -42,6 +44,9 @@ export interface ScannerViewProps {
   qrValue: string | null
   collectedCount?: number
   onContinueFromCapture?: () => void
+  allowDuplicates?: boolean
+  onToggleAllowDuplicates?: () => void
+  isDuplicateCandidate?: boolean
   postCaptureToastMessage?: string | null
   showFlashAnimation?: boolean
   onCapture: () => void
@@ -63,6 +68,8 @@ export const ScannerView = memo(function ScannerView({
   isGuideAligned,
   workerEngine,
   detectionEngine,
+  trackedCheques = [],
+  selectedTrackId = null,
   onToggleDetectionEngine,
   canCapture,
   orientationPrompt,
@@ -74,6 +81,9 @@ export const ScannerView = memo(function ScannerView({
   qrValue,
   collectedCount = 0,
   onContinueFromCapture,
+  allowDuplicates = false,
+  onToggleAllowDuplicates,
+  isDuplicateCandidate = false,
   postCaptureToastMessage,
   showFlashAnimation = false,
   onCapture,
@@ -159,29 +169,34 @@ export const ScannerView = memo(function ScannerView({
   const videoHeight = videoElement?.videoHeight || 1080
   const detectionHeight = Math.round(DETECTION_WIDTH * (videoHeight / videoWidth))
 
-  const defaultStatus = waitingForQr
+  const defaultStatus = isDuplicateCandidate
     ? {
-        text: isGuideAligned
-          ? 'QR kod bekleniyor...'
-          : 'QR kodu kamera ile okutun',
+        text: 'Bu çek zaten eklendi. Başka bir çeke yönelin.',
         cls: 'border border-amber-400/40 bg-amber-500/18 text-amber-200',
       }
-    : isGuideAligned
+    : waitingForQr
       ? {
-          text: 'Hazır - çekim tuşuna dokunun',
-          cls: 'border border-green-500/50 bg-green-500/20 text-green-300',
+          text: isGuideAligned
+            ? 'QR kod bekleniyor...'
+            : 'QR kodu kamera ile okutun',
+          cls: 'border border-amber-400/40 bg-amber-500/18 text-amber-200',
         }
-      : isDetecting
+      : isGuideAligned
         ? {
-            text: 'Sabit tutun...',
-            cls: 'border border-blue-500/50 bg-blue-500/20 text-blue-300',
+            text: 'Hazır - çekim tuşuna dokunun',
+            cls: 'border border-green-500/50 bg-green-500/20 text-green-300',
           }
-        : {
-            text: showGuideOverlay
-              ? 'Çek algılanıyor...'
-              : 'Fotoğraf için butona dokunun',
-            cls: 'bg-black/50 text-white/70',
-          }
+        : isDetecting
+          ? {
+              text: 'Sabit tutun...',
+              cls: 'border border-blue-500/50 bg-blue-500/20 text-blue-300',
+            }
+          : {
+              text: showGuideOverlay
+                ? 'Çek algılanıyor...'
+                : 'Fotoğraf için butona dokunun',
+              cls: 'bg-black/50 text-white/70',
+            }
 
   const blockingStatus = orientationPrompt
     ? {
@@ -227,6 +242,8 @@ export const ScannerView = memo(function ScannerView({
           displayWidth={displaySize.width}
           displayHeight={displaySize.height}
           tone={guideTone}
+          trackedCheques={trackedCheques}
+          selectedTrackId={selectedTrackId}
         />
       ) : null}
 
@@ -259,6 +276,27 @@ export const ScannerView = memo(function ScannerView({
             }
           >
             {detectionEngine === 'yolo' ? 'YOLO' : 'CV'}
+          </button>
+        ) : null}
+
+        {showGuideOverlay && onToggleAllowDuplicates ? (
+          <button
+            type="button"
+            className={`glass flex h-11 items-center justify-center rounded-full border px-3 text-xs font-semibold text-white transition-colors active:scale-95 ${
+              allowDuplicates
+                ? 'border-emerald-400/80 bg-emerald-500/25'
+                : 'border-white/15 bg-black/60'
+            }`}
+            onClick={onToggleAllowDuplicates}
+            aria-pressed={allowDuplicates}
+            aria-label="Aynı çeklerin tekrar eklenmesine izin ver"
+            title={
+              allowDuplicates
+                ? 'Aynı QR tekrar eklenebilir. Kapatmak için dokunun.'
+                : 'Aynı çek tekrar eklenemez. Açmak için dokunun.'
+            }
+          >
+            {allowDuplicates ? 'Aynı Çek: Açık' : 'Aynı Çek: Kapalı'}
           </button>
         ) : null}
 

@@ -24,6 +24,8 @@ import ScannerView from './ScannerView'
 
 const DETECTION_WIDTH = 640
 const DETECTION_ENGINE_STORAGE_KEY = 'qr-scanner.detection-engine'
+const ALLOW_DUPLICATES_STORAGE_KEY = 'qr-scanner.allow-duplicate-cheques'
+const GUIDE_FRAME_HEIGHT_RATIO = 0.6
 
 type CaptureState = 'loading' | 'scanning' | 'adjusting' | 'preview' | 'error'
 export type DetectionEngine = 'cv' | 'yolo'
@@ -38,6 +40,11 @@ function readPersistedDetectionEngine(): DetectionEngine {
   return window.localStorage.getItem(DETECTION_ENGINE_STORAGE_KEY) === 'yolo'
     ? 'yolo'
     : 'cv'
+}
+
+function readPersistedAllowDuplicates(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.localStorage.getItem(ALLOW_DUPLICATES_STORAGE_KEY) === 'true'
 }
 
 export interface CameraCaptureProps {
@@ -86,6 +93,16 @@ export function CameraCapture({
     setDetectionEngine(next)
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(DETECTION_ENGINE_STORAGE_KEY, next)
+    }
+  }, [])
+
+  const [allowDuplicates, setAllowDuplicates] = useState<boolean>(
+    readPersistedAllowDuplicates,
+  )
+  const persistAllowDuplicates = useCallback((next: boolean): void => {
+    setAllowDuplicates(next)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(ALLOW_DUPLICATES_STORAGE_KEY, String(next))
     }
   }, [])
 
@@ -144,7 +161,7 @@ export function CameraCapture({
         displayWidth: viewportSize.width,
         displayHeight: viewportSize.height,
         targetDisplayWidth: viewportSize.width,
-        targetDisplayHeight: viewportSize.width * 0.7,
+        targetDisplayHeight: viewportSize.width * GUIDE_FRAME_HEIGHT_RATIO,
       }),
     [detectionHeight, viewportSize.height, viewportSize.width],
   )
@@ -170,6 +187,8 @@ export function CameraCapture({
     guideRegion,
   )
   const activeDetection = detectionEngine === 'yolo' ? yoloDetection : cvDetection
+  const selectedTrackId = detectionEngine === 'yolo' ? yoloDetection.selectedTrackId : null
+  const trackedCheques = detectionEngine === 'yolo' ? yoloDetection.trackedCheques : []
   const {
     corners,
     isDetecting,
@@ -197,8 +216,24 @@ export function CameraCapture({
     isStable &&
     !orientationPrompt
 
+  const capturedQrValues = useMemo(() => {
+    const set = new Set<string>()
+    for (const item of collectedCaptureDrafts) {
+      set.add(item.qrValue)
+    }
+    return set
+  }, [collectedCaptureDrafts])
+
+  const isDuplicateCandidate = useMemo(() => {
+    if (allowDuplicates) return false
+    if (!onCaptureMultiple) return false
+    const qr = liveQrValue?.trim()
+    return Boolean(qr && capturedQrValues.has(qr))
+  }, [allowDuplicates, capturedQrValues, liveQrValue, onCaptureMultiple])
+
   const canCapture =
     captureState === 'scanning' &&
+    !isDuplicateCandidate &&
     (documentMode
       ? isGuideAligned && (!shouldRequireQr || Boolean(liveQrValue))
       : isReady)
@@ -356,6 +391,14 @@ export function CameraCapture({
             throw new Error('QR kod okunmadan çekim yapılamaz.')
           }
 
+          if (!allowDuplicates) {
+            if (capturedQrValues.has(currentQr)) {
+              throw new Error(
+                'Bu çek zaten eklendi (aynı QR). Farklı bir çek tarayın veya "Aynı çek" seçeneğini açın.',
+              )
+            }
+          }
+
           setCollectedCaptureDrafts((previous) => [...previous, { draft, qrValue: currentQr }])
           triggerCaptureFlash()
           showPostCaptureToast(
@@ -392,7 +435,9 @@ export function CameraCapture({
       }
     }
   }, [
+    allowDuplicates,
     canCapture,
+    capturedQrValues,
     createCaptureDraft,
     detectionHeight,
     documentMode,
@@ -867,6 +912,8 @@ export function CameraCapture({
         isGuideAligned={Boolean(isGuideAligned)}
         workerEngine={workerEngine}
         detectionEngine={detectionEngine}
+        trackedCheques={trackedCheques}
+        selectedTrackId={selectedTrackId}
         onToggleDetectionEngine={() => {
           cvDetection.reset()
           yoloDetection.reset()
@@ -883,6 +930,15 @@ export function CameraCapture({
         qrValue={liveQrValue}
         collectedCount={onCaptureMultiple ? collectedCaptureDrafts.length : 0}
         onContinueFromCapture={onCaptureMultiple ? handleContinueMultiCapture : undefined}
+        allowDuplicates={allowDuplicates}
+        onToggleAllowDuplicates={
+          onCaptureMultiple
+            ? () => {
+                persistAllowDuplicates(!allowDuplicates)
+              }
+            : undefined
+        }
+        isDuplicateCandidate={isDuplicateCandidate}
         postCaptureToastMessage={postCaptureToastMessage}
         showFlashAnimation={showFlashAnimation}
         onCapture={handleCapture}
