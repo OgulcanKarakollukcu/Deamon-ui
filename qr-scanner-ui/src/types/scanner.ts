@@ -5,6 +5,13 @@ export interface CornerPoint {
 
 export type CornerQuad = [CornerPoint, CornerPoint, CornerPoint, CornerPoint]
 
+export interface GuideRegion {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface CameraErrorState {
   code: 'UNSUPPORTED' | 'PERMISSION_DENIED' | 'NOT_FOUND' | 'IN_USE' | 'UNKNOWN'
   message: string

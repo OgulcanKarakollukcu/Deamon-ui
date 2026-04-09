@@ -6,20 +6,32 @@ import {
 } from '../../hooks/useImageProcessing'
 import { useQrDecoder } from '../../hooks/useQrDecoder'
 import { useYoloDetection } from '../../hooks/useYoloDetection'
-import { analyzeUploadedChequeDraftBatch } from '../../services/multiChequeAnalyzer'
+import {
+  analyzeUploadedChequeDraftBatch,
+  type MultiChequeDraftCapture,
+} from '../../services/multiChequeAnalyzer'
 import { analyzeUploadedCheckImage } from '../../services/uploadedCheckAnalyzer'
 import { useScannerCamera } from '../../hooks/useScannerCamera'
-import type { CaptureDraft, EnhancementMode, ProcessedCapture } from '../../types/scanner'
-import { createGuideCorners, quadEdgeLengths } from '../../utils/scanner/geometry'
+import type {
+  CaptureDraft,
+  EnhancementMode,
+  GuideRegion,
+  ProcessedCapture,
+} from '../../types/scanner'
+import { createGuideCorners } from '../../utils/scanner/geometry'
 import AdjustScreen from './AdjustScreen'
 import ScannerView from './ScannerView'
 
 const DETECTION_WIDTH = 640
-const MIN_CAPTURE_EDGE_RATIO = 0.92
 const DETECTION_ENGINE_STORAGE_KEY = 'qr-scanner.detection-engine'
 
 type CaptureState = 'loading' | 'scanning' | 'adjusting' | 'preview' | 'error'
 export type DetectionEngine = 'cv' | 'yolo'
+
+interface ViewportSize {
+  width: number
+  height: number
+}
 
 function readPersistedDetectionEngine(): DetectionEngine {
   if (typeof window === 'undefined') return 'cv'
@@ -43,6 +55,17 @@ function resolveCaptureErrorMessage(error: unknown): string {
   }
 
   return 'Fotoğraf alınamadı. Lütfen tekrar deneyin.'
+}
+
+function readViewportSize(): ViewportSize {
+  if (typeof window === 'undefined') {
+    return { width: DETECTION_WIDTH, height: Math.round(DETECTION_WIDTH * 1.6) }
+  }
+
+  return {
+    width: Math.max(1, window.innerWidth),
+    height: Math.max(1, window.innerHeight),
+  }
 }
 
 export function CameraCapture({
@@ -72,8 +95,14 @@ export function CameraCapture({
   const [rawCaptureDataUrl, setRawCaptureDataUrl] = useState<string | null>(null)
   const [captureError, setCaptureError] = useState<string | null>(null)
   const [liveQrValue, setLiveQrValue] = useState<string | null>(null)
-  const [multiQueue, setMultiQueue] = useState<Array<{ draft: CaptureDraft; qrValue: string }> | null>(null)
+  const [viewportSize, setViewportSize] = useState<ViewportSize>(readViewportSize)
+  const [collectedCaptureDrafts, setCollectedCaptureDrafts] = useState<MultiChequeDraftCapture[]>(
+    [],
+  )
+  const [multiQueue, setMultiQueue] = useState<MultiChequeDraftCapture[] | null>(null)
   const [multiCollected, setMultiCollected] = useState<Array<{ dataUrl: string; qrValue: string }> | null>(null)
+  const [showFlashAnimation, setShowFlashAnimation] = useState(false)
+  const [postCaptureToastMessage, setPostCaptureToastMessage] = useState<string | null>(null)
   // In multi-cheque mode we require the user to explicitly pick a filter per cheque
   // before allowing "Bu Ceki Ekle" (prevents accidental auto-accept).
   const [multiSelectedEnhancementMode, setMultiSelectedEnhancementMode] = useState<EnhancementMode | null>(null)
@@ -82,6 +111,8 @@ export function CameraCapture({
   const localCornersRef = useRef(captureDraft?.corners ?? null)
   const qrCanvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const flashTimerRef = useRef<number | null>(null)
+  const toastTimerRef = useRef<number | null>(null)
   const [isUploadAnalyzing, setIsUploadAnalyzing] = useState(false)
 
   const {
@@ -102,6 +133,31 @@ export function CameraCapture({
     toggleTorch,
   } = useScannerCamera()
 
+  const videoElement = videoRef.current
+  const videoWidth = videoElement?.videoWidth || 1920
+  const videoHeight = videoElement?.videoHeight || 1080
+  const detectionHeight = Math.round(DETECTION_WIDTH * (videoHeight / videoWidth))
+
+  const guideCorners = useMemo(
+    () =>
+      createGuideCorners(DETECTION_WIDTH, detectionHeight, {
+        displayWidth: viewportSize.width,
+        displayHeight: viewportSize.height,
+        targetDisplayWidth: viewportSize.width,
+        targetDisplayHeight: viewportSize.width * 0.7,
+      }),
+    [detectionHeight, viewportSize.height, viewportSize.width],
+  )
+  const guideRegion = useMemo<GuideRegion>(
+    () => ({
+      x: guideCorners[0].x,
+      y: guideCorners[0].y,
+      width: guideCorners[1].x - guideCorners[0].x,
+      height: guideCorners[2].y - guideCorners[1].y,
+    }),
+    [guideCorners],
+  )
+
   const cvDetection = useEdgeDetection(
     videoRef,
     isReady,
@@ -111,6 +167,7 @@ export function CameraCapture({
     videoRef,
     isReady,
     documentMode && detectionEngine === 'yolo',
+    guideRegion,
   )
   const activeDetection = detectionEngine === 'yolo' ? yoloDetection : cvDetection
   const {
@@ -131,42 +188,19 @@ export function CameraCapture({
     setEnhancementMode,
   } = useImageProcessing(videoRef)
 
-  const videoElement = videoRef.current
-  const videoWidth = videoElement?.videoWidth || 1920
-  const videoHeight = videoElement?.videoHeight || 1080
-  const detectionHeight = Math.round(DETECTION_WIDTH * (videoHeight / videoWidth))
-
-  const guideCorners = useMemo(
-    () => createGuideCorners(DETECTION_WIDTH, detectionHeight),
-    [detectionHeight],
-  )
-
-  const guideEdges = documentMode ? quadEdgeLengths(guideCorners) : null
-  const detectedEdges = documentMode && corners ? quadEdgeLengths(corners) : null
-
   const isOrientationReady = true
-  const isCloseEnough = Boolean(
-    !documentMode ||
-      (detectedEdges &&
-        guideEdges &&
-        detectedEdges.top >= guideEdges.top * MIN_CAPTURE_EDGE_RATIO &&
-        detectedEdges.bottom >= guideEdges.bottom * MIN_CAPTURE_EDGE_RATIO &&
-        detectedEdges.left >= guideEdges.left * MIN_CAPTURE_EDGE_RATIO &&
-        detectedEdges.right >= guideEdges.right * MIN_CAPTURE_EDGE_RATIO),
-  )
-
-  const needsToMoveCloser =
-    documentMode && isOrientationReady && Boolean(corners) && !isCloseEnough
-
+  const needsToMoveCloser = false
   const orientationPrompt = null
+  const isGuideAligned =
+    documentMode &&
+    Boolean(corners) &&
+    isStable &&
+    !orientationPrompt
 
   const canCapture =
     captureState === 'scanning' &&
     (documentMode
-      ? isStable &&
-        !orientationPrompt &&
-        !needsToMoveCloser &&
-        (!shouldRequireQr || Boolean(liveQrValue))
+      ? isGuideAligned && (!shouldRequireQr || Boolean(liveQrValue))
       : isReady)
 
   const capturedPreviewDataUrl = processedCapture?.dataURL ?? rawCaptureDataUrl
@@ -207,6 +241,19 @@ export function CameraCapture({
   }, [captureState, documentMode, isReady, workerReady])
 
   useEffect(() => {
+    const handleResize = (): void => {
+      setViewportSize(readViewportSize())
+    }
+
+    handleResize()
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
+
+  useEffect(() => {
     if (!cameraError) {
       return
     }
@@ -239,7 +286,43 @@ export function CameraCapture({
     }
   }, [captureState])
 
-  const handleCapture = useCallback((): void => {
+  useEffect(
+    () => () => {
+      if (flashTimerRef.current !== null) {
+        window.clearTimeout(flashTimerRef.current)
+      }
+      if (toastTimerRef.current !== null) {
+        window.clearTimeout(toastTimerRef.current)
+      }
+    },
+    [],
+  )
+
+  const triggerCaptureFlash = useCallback((): void => {
+    if (flashTimerRef.current !== null) {
+      window.clearTimeout(flashTimerRef.current)
+    }
+
+    setShowFlashAnimation(true)
+    flashTimerRef.current = window.setTimeout(() => {
+      setShowFlashAnimation(false)
+      flashTimerRef.current = null
+    }, 260)
+  }, [])
+
+  const showPostCaptureToast = useCallback((message: string): void => {
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current)
+    }
+
+    setPostCaptureToastMessage(message)
+    toastTimerRef.current = window.setTimeout(() => {
+      setPostCaptureToastMessage(null)
+      toastTimerRef.current = null
+    }, 3600)
+  }, [])
+
+  const handleCapture = useCallback(async (): Promise<void> => {
     if (!canCapture || capturePendingRef.current) {
       return
     }
@@ -266,6 +349,25 @@ export function CameraCapture({
           DETECTION_WIDTH,
           detectionHeight,
         )
+
+        if (onCaptureMultiple) {
+          const currentQr = liveQrValue?.trim()
+          if (!currentQr) {
+            throw new Error('QR kod okunmadan çekim yapılamaz.')
+          }
+
+          setCollectedCaptureDrafts((previous) => [...previous, { draft, qrValue: currentQr }])
+          triggerCaptureFlash()
+          showPostCaptureToast(
+            "Çek eklendi. Başka çek varsa ona geçin, yoksa Devam Et'e basın.",
+          )
+          setCaptureError(null)
+          setLiveQrValue(null)
+          localCornersRef.current = null
+          resetDetection()
+          capturePendingRef.current = false
+          return
+        }
 
         setCaptureDraft(draft)
         setCaptureState('adjusting')
@@ -296,10 +398,47 @@ export function CameraCapture({
     documentMode,
     guideCorners,
     liveQrValue,
+    onCaptureMultiple,
     onError,
+    resetDetection,
     shouldRequireQr,
+    showPostCaptureToast,
+    triggerCaptureFlash,
     videoRef,
   ])
+
+  const handleContinueMultiCapture = useCallback((): void => {
+    if (!onCaptureMultiple || collectedCaptureDrafts.length < 1) {
+      return
+    }
+
+    const [firstDraft] = collectedCaptureDrafts
+    if (!firstDraft) {
+      return
+    }
+
+    capturePendingRef.current = false
+    if (flashTimerRef.current !== null) {
+      window.clearTimeout(flashTimerRef.current)
+      flashTimerRef.current = null
+    }
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current)
+      toastTimerRef.current = null
+    }
+    setCaptureError(null)
+    setPostCaptureToastMessage(null)
+    setShowFlashAnimation(false)
+    setMultiCollected([])
+    setMultiQueue(collectedCaptureDrafts)
+    setCollectedCaptureDrafts([])
+    setCaptureDraft(firstDraft.draft)
+    setProcessedCapture(null)
+    setRawCaptureDataUrl(null)
+    setLiveQrValue(firstDraft.qrValue)
+    setMultiSelectedEnhancementMode(null)
+    setCaptureState('adjusting')
+  }, [collectedCaptureDrafts, onCaptureMultiple])
 
   const handleConfirmAdjustment = useCallback(
     async (adjustedCorners: typeof guideCorners): Promise<void> => {
@@ -334,14 +473,25 @@ export function CameraCapture({
 
   const handleRetake = useCallback((): void => {
     capturePendingRef.current = false
+    if (flashTimerRef.current !== null) {
+      window.clearTimeout(flashTimerRef.current)
+      flashTimerRef.current = null
+    }
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current)
+      toastTimerRef.current = null
+    }
     setCaptureDraft(null)
     setProcessedCapture(null)
     setRawCaptureDataUrl(null)
     setCaptureError(null)
     setLiveQrValue(null)
+    setCollectedCaptureDrafts([])
     setMultiQueue(null)
     setMultiCollected(null)
     setMultiSelectedEnhancementMode(null)
+    setShowFlashAnimation(false)
+    setPostCaptureToastMessage(null)
     localCornersRef.current = null
     resetDetection()
     setCaptureState('scanning')
@@ -373,6 +523,7 @@ export function CameraCapture({
         // Finish multi-review: push all at once into the session.
         setMultiQueue(null)
         setMultiCollected(null)
+        setCollectedCaptureDrafts([])
         onCaptureMultiple(nextCollected)
         return
       }
@@ -382,6 +533,7 @@ export function CameraCapture({
       if (!next) {
         setMultiQueue(null)
         setMultiCollected(null)
+        setCollectedCaptureDrafts([])
         onCaptureMultiple(nextCollected)
         return
       }
@@ -465,6 +617,7 @@ export function CameraCapture({
             engine: detectionEngine,
           })
           if (drafts.length >= 2) {
+            setCollectedCaptureDrafts([])
             setMultiCollected([])
             setMultiQueue(drafts)
             setCaptureDraft(drafts[0].draft)
@@ -472,6 +625,9 @@ export function CameraCapture({
             setRawCaptureDataUrl(null)
             setLiveQrValue(drafts[0].qrValue)
             setCaptureError('Birden fazla cek bulundu. Her cek icin koseleri duzeltip filtreyi secin.')
+            setMultiSelectedEnhancementMode(null)
+            setPostCaptureToastMessage(null)
+            setShowFlashAnimation(false)
             setCaptureState('adjusting')
             return
           }
@@ -707,9 +863,8 @@ export function CameraCapture({
         onToggleTorch={() => {
           void toggleTorch()
         }}
-        corners={corners}
         isDetecting={isDetecting}
-        isStable={isStable}
+        isGuideAligned={Boolean(isGuideAligned)}
         workerEngine={workerEngine}
         detectionEngine={detectionEngine}
         onToggleDetectionEngine={() => {
@@ -726,10 +881,11 @@ export function CameraCapture({
         instructionText={instructionText}
         qrRequired={shouldRequireQr}
         qrValue={liveQrValue}
+        collectedCount={onCaptureMultiple ? collectedCaptureDrafts.length : 0}
+        onContinueFromCapture={onCaptureMultiple ? handleContinueMultiCapture : undefined}
+        postCaptureToastMessage={postCaptureToastMessage}
+        showFlashAnimation={showFlashAnimation}
         onCapture={handleCapture}
-        onCornersChange={(nextCorners) => {
-          localCornersRef.current = nextCorners
-        }}
       />
 
       <canvas ref={qrCanvasRef} className="hidden" aria-hidden="true" />
@@ -743,7 +899,11 @@ export function CameraCapture({
         }}
       />
 
-      <div className="absolute bottom-28 left-1/2 z-20 -translate-x-1/2">
+      <div
+        className={`absolute left-1/2 z-20 -translate-x-1/2 ${
+          onCaptureMultiple ? 'bottom-[250px]' : 'bottom-28'
+        }`}
+      >
         <button
           type="button"
           className="min-h-[42px] rounded-xl border border-white/30 bg-black/45 px-4 text-sm font-semibold text-white backdrop-blur transition-colors hover:bg-black/60 disabled:cursor-not-allowed disabled:opacity-50"

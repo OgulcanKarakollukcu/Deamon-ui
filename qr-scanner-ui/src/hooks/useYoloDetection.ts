@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
-import type { CornerQuad } from '../types/scanner'
+import type { CornerQuad, GuideRegion } from '../types/scanner'
 import { cornersAreClose, smoothCorners } from '../utils/scanner/geometry'
 import {
-  detectBestChequeWithYolo,
+  detectChequesWithYolo,
   ensureYoloModelLoaded,
+  type YoloChequeDetection,
 } from '../utils/scanner/yoloDetector'
 
 const DETECTION_WIDTH = 640
@@ -31,6 +32,7 @@ export function useYoloDetection(
   videoRef: RefObject<HTMLVideoElement>,
   isVideoReady: boolean,
   enabled: boolean,
+  guideRegion?: GuideRegion | null,
 ): UseYoloDetectionResult {
   const [corners, setCorners] = useState<CornerQuad | null>(null)
   const [isDetecting, setIsDetecting] = useState(false)
@@ -130,9 +132,17 @@ export function useYoloDetection(
         return
       }
 
-      if (canvas.width !== DETECTION_WIDTH || canvas.height !== detectionHeight) {
-        canvas.width = DETECTION_WIDTH
-        canvas.height = detectionHeight
+      const resolvedGuideRegion = resolveGuideRegion(
+        guideRegion,
+        DETECTION_WIDTH,
+        detectionHeight,
+      )
+      const targetWidth = DETECTION_WIDTH
+      const targetHeight = detectionHeight
+
+      if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth
+        canvas.height = targetHeight
       }
 
       context.drawImage(videoElement, 0, 0, DETECTION_WIDTH, detectionHeight)
@@ -140,9 +150,10 @@ export function useYoloDetection(
       inFlightRef.current = true
       lastFrameTimeRef.current = timestamp
 
-      detectBestChequeWithYolo(canvas, DETECTION_WIDTH, detectionHeight)
-        .then((detection) => {
+      detectChequesWithYolo(canvas, targetWidth, targetHeight)
+        .then((detections) => {
           inFlightRef.current = false
+          const detection = selectTrackedDetection(detections, resolvedGuideRegion)
 
           if (!detection) {
             smoothedCornersRef.current = null
@@ -205,7 +216,7 @@ export function useYoloDetection(
         frameLoopRef.current = null
       }
     }
-  }, [enabled, workerReady, workerEngine, isVideoReady, videoRef])
+  }, [enabled, guideRegion, isVideoReady, workerEngine, workerReady, videoRef])
 
   const reset = useCallback((): void => {
     smoothedCornersRef.current = null
@@ -228,6 +239,87 @@ export function useYoloDetection(
     workerEngine,
     reset,
   }
+}
+
+function resolveGuideRegion(
+  guideRegion: GuideRegion | null | undefined,
+  maxWidth: number,
+  maxHeight: number,
+): GuideRegion | null {
+  if (!guideRegion) {
+    return null
+  }
+
+  const x = clamp(guideRegion.x, 0, maxWidth - 1)
+  const y = clamp(guideRegion.y, 0, maxHeight - 1)
+  const width = clamp(guideRegion.width, 1, maxWidth - x)
+  const height = clamp(guideRegion.height, 1, maxHeight - y)
+
+  return { x, y, width, height }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
+function selectTrackedDetection(
+  detections: YoloChequeDetection[],
+  guideRegion: GuideRegion | null,
+): YoloChequeDetection | null {
+  if (detections.length < 1) {
+    return null
+  }
+
+  if (!guideRegion) {
+    return detections[0] ?? null
+  }
+
+  const guideBox = {
+    minX: guideRegion.x,
+    minY: guideRegion.y,
+    maxX: guideRegion.x + guideRegion.width,
+    maxY: guideRegion.y + guideRegion.height,
+  }
+
+  let bestDetection: YoloChequeDetection | null = null
+  let bestScore = 0
+
+  for (const detection of detections) {
+    const score = bboxIou(guideBox, detection.bbox)
+    if (score > bestScore) {
+      bestScore = score
+      bestDetection = detection
+      continue
+    }
+
+    if (
+      score === bestScore &&
+      bestDetection &&
+      detection.confidence > bestDetection.confidence
+    ) {
+      bestDetection = detection
+    }
+  }
+
+  return bestScore > 0 ? bestDetection : null
+}
+
+function bboxIou(
+  a: { minX: number; minY: number; maxX: number; maxY: number },
+  b: { minX: number; minY: number; maxX: number; maxY: number },
+): number {
+  const ix0 = Math.max(a.minX, b.minX)
+  const iy0 = Math.max(a.minY, b.minY)
+  const ix1 = Math.min(a.maxX, b.maxX)
+  const iy1 = Math.min(a.maxY, b.maxY)
+  const iw = Math.max(0, ix1 - ix0)
+  const ih = Math.max(0, iy1 - iy0)
+  const inter = iw * ih
+  if (!inter) return 0
+  const areaA = Math.max(0, a.maxX - a.minX) * Math.max(0, a.maxY - a.minY)
+  const areaB = Math.max(0, b.maxX - b.minX) * Math.max(0, b.maxY - b.minY)
+  const denom = areaA + areaB - inter
+  return denom ? inter / denom : 0
 }
 
 function getAdaptiveLerpFactor(

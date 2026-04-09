@@ -1,8 +1,8 @@
 import { memo, useEffect, useRef, useState } from 'react'
-import type { CornerQuad, FlashModeOption } from '../../types/scanner'
+import type { FlashModeOption } from '../../types/scanner'
 import { useOrientationLockAssist } from '../../hooks/useOrientationLockAssist'
 import CameraSelect from './CameraSelect'
-import { CornerOverlay } from './CornerOverlay'
+import GuideFrameOverlay from './GuideFrameOverlay'
 
 const DETECTION_WIDTH = 640
 const NO_DETECTION_TIPS_DELAY_MS = 5000
@@ -27,9 +27,8 @@ export interface ScannerViewProps {
   flashModeOptions: FlashModeOption[]
   onApplyFlashMode: (mode: string) => void
   onToggleTorch: () => void
-  corners: CornerQuad | null
   isDetecting: boolean
-  isStable: boolean
+  isGuideAligned: boolean
   workerEngine: 'opencv' | 'fallback' | 'yolo' | null
   detectionEngine: 'cv' | 'yolo'
   onToggleDetectionEngine: () => void
@@ -41,8 +40,11 @@ export interface ScannerViewProps {
   instructionText?: string
   qrRequired: boolean
   qrValue: string | null
+  collectedCount?: number
+  onContinueFromCapture?: () => void
+  postCaptureToastMessage?: string | null
+  showFlashAnimation?: boolean
   onCapture: () => void
-  onCornersChange: (corners: CornerQuad) => void
 }
 
 export const ScannerView = memo(function ScannerView({
@@ -57,9 +59,8 @@ export const ScannerView = memo(function ScannerView({
   flashModeOptions,
   onApplyFlashMode,
   onToggleTorch,
-  corners,
   isDetecting,
-  isStable,
+  isGuideAligned,
   workerEngine,
   detectionEngine,
   onToggleDetectionEngine,
@@ -71,8 +72,11 @@ export const ScannerView = memo(function ScannerView({
   instructionText,
   qrRequired,
   qrValue,
+  collectedCount = 0,
+  onContinueFromCapture,
+  postCaptureToastMessage,
+  showFlashAnimation = false,
   onCapture,
-  onCornersChange,
 }: ScannerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 })
@@ -157,12 +161,12 @@ export const ScannerView = memo(function ScannerView({
 
   const defaultStatus = waitingForQr
     ? {
-        text: isStable
+        text: isGuideAligned
           ? 'QR kod bekleniyor...'
           : 'QR kodu kamera ile okutun',
         cls: 'border border-amber-400/40 bg-amber-500/18 text-amber-200',
       }
-    : isStable
+    : isGuideAligned
       ? {
           text: 'Hazır - çekim tuşuna dokunun',
           cls: 'border border-green-500/50 bg-green-500/20 text-green-300',
@@ -192,10 +196,18 @@ export const ScannerView = memo(function ScannerView({
       : null
 
   const resolvedStatus = blockingStatus || defaultStatus
+  const guideTone =
+    orientationPrompt || needsToMoveCloser
+      ? 'warning'
+      : isGuideAligned
+        ? 'ready'
+        : isDetecting
+          ? 'detecting'
+          : 'idle'
 
   const innerClass = !canCapture && (orientationPrompt || needsToMoveCloser)
     ? 'capture-inner-blocked'
-    : isStable
+    : isGuideAligned
       ? 'capture-inner-stable'
       : isDetecting
         ? 'capture-inner-detecting'
@@ -209,16 +221,17 @@ export const ScannerView = memo(function ScannerView({
       <video ref={videoRef} className="camera-video" autoPlay playsInline muted />
 
       {showGuideOverlay && !showRotationGuide ? (
-        <CornerOverlay
-          corners={corners}
-          isStable={isStable}
+        <GuideFrameOverlay
           detectionWidth={DETECTION_WIDTH}
           detectionHeight={detectionHeight}
           displayWidth={displaySize.width}
           displayHeight={displaySize.height}
-          interactive={false}
-          onCornersChange={onCornersChange}
+          tone={guideTone}
         />
+      ) : null}
+
+      {showFlashAnimation ? (
+        <div className="pointer-events-none absolute inset-0 z-30 animate-camera-flash bg-white" />
       ) : null}
 
       <div className="absolute right-0 top-0 z-10 flex items-center gap-2 pr-safe pt-safe">
@@ -320,6 +333,32 @@ export const ScannerView = memo(function ScannerView({
               <li key={tip}>{tip}</li>
             ))}
           </ul>
+        </div>
+      ) : null}
+
+      {postCaptureToastMessage ? (
+        <div className="pointer-events-none absolute left-1/2 z-20 w-[min(92vw,420px)] -translate-x-1/2 rounded-2xl border border-white/12 bg-black/72 px-4 py-3 text-center shadow-[0_18px_50px_rgba(0,0,0,0.28)] backdrop-blur-md"
+          style={{ bottom: '206px' }}
+        >
+          <p className="text-sm font-medium leading-relaxed text-white">
+            {postCaptureToastMessage}
+          </p>
+        </div>
+      ) : null}
+
+      {onContinueFromCapture ? (
+        <div className="absolute inset-x-0 bottom-[118px] z-20 flex justify-center px-4 pb-safe">
+          <button
+            type="button"
+            className="glass inline-flex min-h-[48px] items-center justify-center gap-3 rounded-2xl border border-emerald-400/30 bg-emerald-500/18 px-5 py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-black/40 disabled:text-white/45"
+            onClick={onContinueFromCapture}
+            disabled={collectedCount < 1}
+          >
+            <span>Devam Et</span>
+            <span className="inline-flex min-w-[28px] items-center justify-center rounded-full bg-white/14 px-2 py-1 text-xs font-bold text-white">
+              {collectedCount}
+            </span>
+          </button>
         </div>
       ) : null}
 

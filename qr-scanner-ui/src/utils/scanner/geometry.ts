@@ -15,6 +15,13 @@ export interface QuadEdgeLengths {
   left: number
 }
 
+export interface GuideCornerOptions {
+  displayWidth?: number
+  displayHeight?: number
+  targetDisplayWidth?: number
+  targetDisplayHeight?: number
+}
+
 function asCornerQuad(points: CornerPoint[]): CornerQuad {
   return [points[0], points[1], points[2], points[3]]
 }
@@ -158,7 +165,58 @@ export function scaleCornersToCover(
 /**
  * Creates centered guide corners with cheque-like aspect ratio.
  */
-export function createGuideCorners(width: number, height: number): CornerQuad {
+export function createGuideCorners(
+  width: number,
+  height: number,
+  options: GuideCornerOptions = {},
+): CornerQuad {
+  const {
+    displayWidth,
+    displayHeight,
+    targetDisplayWidth,
+    targetDisplayHeight,
+  } = options
+
+  if (displayWidth && displayHeight) {
+    const transform = computeCoverTransform(width, height, displayWidth, displayHeight)
+    if (transform) {
+      const guideWidthOnDisplay = clamp(
+        targetDisplayWidth ?? displayWidth,
+        1,
+        displayWidth,
+      )
+      const guideHeightOnDisplay = clamp(
+        targetDisplayHeight ?? guideWidthOnDisplay * 0.7,
+        1,
+        displayHeight,
+      )
+
+      const x0 = (displayWidth - guideWidthOnDisplay) / 2
+      const y0 = (displayHeight - guideHeightOnDisplay) / 2
+      const x1 = x0 + guideWidthOnDisplay
+      const y1 = y0 + guideHeightOnDisplay
+
+      return [
+        {
+          x: clamp((x0 - transform.offsetX) / transform.scale, 0, width),
+          y: clamp((y0 - transform.offsetY) / transform.scale, 0, height),
+        },
+        {
+          x: clamp((x1 - transform.offsetX) / transform.scale, 0, width),
+          y: clamp((y0 - transform.offsetY) / transform.scale, 0, height),
+        },
+        {
+          x: clamp((x1 - transform.offsetX) / transform.scale, 0, width),
+          y: clamp((y1 - transform.offsetY) / transform.scale, 0, height),
+        },
+        {
+          x: clamp((x0 - transform.offsetX) / transform.scale, 0, width),
+          y: clamp((y1 - transform.offsetY) / transform.scale, 0, height),
+        },
+      ]
+    }
+  }
+
   const targetAspect = 2.35
   let guideWidth = width * 0.84
   let guideHeight = guideWidth / targetAspect
@@ -177,6 +235,10 @@ export function createGuideCorners(width: number, height: number): CornerQuad {
     { x: x + guideWidth, y: y + guideHeight },
     { x, y: y + guideHeight },
   ]
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
 }
 
 /**

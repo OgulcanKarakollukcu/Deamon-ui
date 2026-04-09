@@ -50,6 +50,20 @@ body {
   }
 }
 
+@keyframes cameraFlash {
+  0% {
+    opacity: 0;
+  }
+
+  18% {
+    opacity: 0.94;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
 @keyframes rotatePhoneGuide {
   0%,
   18% {
@@ -116,6 +130,10 @@ body {
 
 .tips-appear {
   animation: fadeIn 0.4s ease;
+}
+
+.animate-camera-flash {
+  animation: cameraFlash 260ms ease-out forwards;
 }
 
 .glass {
