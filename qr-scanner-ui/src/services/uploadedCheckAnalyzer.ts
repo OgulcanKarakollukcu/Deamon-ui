@@ -1,5 +1,6 @@
 import type { CornerQuad } from '../types/scanner'
 import { scaleCorners } from '../utils/scanner/geometry'
+import { detectBestChequeWithYolo } from '../utils/scanner/yoloDetector'
 import type { ReadInputBarcodeFormat } from 'zxing-wasm/reader'
 
 const TARGET_FORMATS: ReadInputBarcodeFormat[] = ['DataMatrix', 'QRCode']
@@ -7,6 +8,12 @@ const MAX_QR_IMAGE_EDGE = 1600
 const PROCESSING_IMAGE_EDGE = 2200
 const DETECTION_IMAGE_EDGE = 640
 const DETECT_TIMEOUT_MS = 7000
+
+export type DetectionEngine = 'cv' | 'yolo'
+
+export interface AnalyzeUploadedCheckOptions {
+  engine?: DetectionEngine
+}
 
 interface WorkerReadyMessage {
   type: 'READY'
@@ -45,13 +52,15 @@ export interface UploadedCheckDraft {
  */
 export async function analyzeUploadedCheckImage(
   file: File,
+  options: AnalyzeUploadedCheckOptions = {},
 ): Promise<UploadedCheckAnalysisResult> {
+  const engine: DetectionEngine = options.engine ?? 'cv'
   const dataUrl = await readFileAsDataUrl(file)
   const image = await loadImageElement(file)
 
   try {
     const qrValue = await decodeQrValueWithRotationFallback(image)
-    const draft = await buildDraftWithRotationFallback(image)
+    const draft = await buildDraftWithRotationFallback(image, engine)
 
     return {
       dataUrl,
@@ -164,6 +173,7 @@ async function decodeQrValueWithRotationFallback(
 
 async function buildDraftWithRotationFallback(
   image: HTMLImageElement,
+  engine: DetectionEngine,
 ): Promise<UploadedCheckDraft> {
   let fallback: UploadedCheckDraft | null = null
 
@@ -179,7 +189,10 @@ async function buildDraftWithRotationFallback(
       rotationDegrees,
     )
 
-    const detectedCornersOnDetection = await detectChequeCorners(detectionImageData)
+    const detectedCornersOnDetection =
+      engine === 'yolo'
+        ? await detectChequeCornersWithYolo(detectionCanvas)
+        : await detectChequeCorners(detectionImageData)
     const detectedCorners = detectedCornersOnDetection
       ? scaleCorners(
           detectedCornersOnDetection,
@@ -235,6 +248,26 @@ async function decodeQrValue(imageData: ImageData): Promise<string | null> {
     return null
   }
   return value
+}
+
+/**
+ * Runs the fine-tuned YOLO-OBB model on the detection canvas and returns the
+ * highest-confidence cheque corners (or null if nothing crosses the model's
+ * confidence threshold).
+ */
+async function detectChequeCornersWithYolo(
+  detectionCanvas: HTMLCanvasElement,
+): Promise<CornerQuad | null> {
+  try {
+    const detection = await detectBestChequeWithYolo(
+      detectionCanvas,
+      detectionCanvas.width,
+      detectionCanvas.height,
+    )
+    return detection ? detection.corners : null
+  } catch {
+    return null
+  }
 }
 
 /**

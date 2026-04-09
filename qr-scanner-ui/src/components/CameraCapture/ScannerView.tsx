@@ -30,7 +30,9 @@ export interface ScannerViewProps {
   corners: CornerQuad | null
   isDetecting: boolean
   isStable: boolean
-  workerEngine: 'opencv' | 'fallback' | null
+  workerEngine: 'opencv' | 'fallback' | 'yolo' | null
+  detectionEngine: 'cv' | 'yolo'
+  onToggleDetectionEngine: () => void
   canCapture: boolean
   orientationPrompt: string | null
   showRotationGuide: boolean
@@ -59,6 +61,8 @@ export const ScannerView = memo(function ScannerView({
   isDetecting,
   isStable,
   workerEngine,
+  detectionEngine,
+  onToggleDetectionEngine,
   canCapture,
   orientationPrompt,
   showRotationGuide,
@@ -222,6 +226,27 @@ export const ScannerView = memo(function ScannerView({
           <span className="rounded-full bg-amber-400/90 px-2.5 py-0.5 text-xs font-semibold text-black">
             Fallback
           </span>
+        ) : null}
+
+        {showGuideOverlay ? (
+          <button
+            type="button"
+            className={`glass flex h-11 items-center justify-center rounded-full border px-3 text-xs font-semibold text-white transition-colors active:scale-95 ${
+              detectionEngine === 'yolo'
+                ? 'border-emerald-400/80 bg-emerald-500/25'
+                : 'border-white/15 bg-black/60'
+            }`}
+            onClick={onToggleDetectionEngine}
+            aria-pressed={detectionEngine === 'yolo'}
+            aria-label="Çek tanıma motorunu değiştir"
+            title={
+              detectionEngine === 'yolo'
+                ? 'Aktif motor: YOLO (TFJS). OpenCV moduna geçmek için dokunun.'
+                : 'Aktif motor: OpenCV. YOLO (TFJS) moduna geçmek için dokunun.'
+            }
+          >
+            {detectionEngine === 'yolo' ? 'YOLO' : 'CV'}
+          </button>
         ) : null}
 
         <CameraSelect

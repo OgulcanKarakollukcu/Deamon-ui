@@ -5,6 +5,7 @@ import {
   useImageProcessing,
 } from '../../hooks/useImageProcessing'
 import { useQrDecoder } from '../../hooks/useQrDecoder'
+import { useYoloDetection } from '../../hooks/useYoloDetection'
 import { analyzeUploadedChequeDraftBatch } from '../../services/multiChequeAnalyzer'
 import { analyzeUploadedCheckImage } from '../../services/uploadedCheckAnalyzer'
 import { useScannerCamera } from '../../hooks/useScannerCamera'
@@ -15,8 +16,17 @@ import ScannerView from './ScannerView'
 
 const DETECTION_WIDTH = 640
 const MIN_CAPTURE_EDGE_RATIO = 0.92
+const DETECTION_ENGINE_STORAGE_KEY = 'qr-scanner.detection-engine'
 
 type CaptureState = 'loading' | 'scanning' | 'adjusting' | 'preview' | 'error'
+export type DetectionEngine = 'cv' | 'yolo'
+
+function readPersistedDetectionEngine(): DetectionEngine {
+  if (typeof window === 'undefined') return 'cv'
+  return window.localStorage.getItem(DETECTION_ENGINE_STORAGE_KEY) === 'yolo'
+    ? 'yolo'
+    : 'cv'
+}
 
 export interface CameraCaptureProps {
   onCapture: (dataUrl: string, qrValue?: string) => void
@@ -45,6 +55,16 @@ export function CameraCapture({
 }: CameraCaptureProps) {
   const documentMode = showOverlay
   const shouldRequireQr = documentMode && qrRequired
+
+  const [detectionEngine, setDetectionEngine] = useState<DetectionEngine>(
+    readPersistedDetectionEngine,
+  )
+  const persistDetectionEngine = useCallback((next: DetectionEngine): void => {
+    setDetectionEngine(next)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(DETECTION_ENGINE_STORAGE_KEY, next)
+    }
+  }, [])
 
   const [captureState, setCaptureState] = useState<CaptureState>('loading')
   const [captureDraft, setCaptureDraft] = useState<CaptureDraft | null>(null)
@@ -82,6 +102,17 @@ export function CameraCapture({
     toggleTorch,
   } = useScannerCamera()
 
+  const cvDetection = useEdgeDetection(
+    videoRef,
+    isReady,
+    documentMode && detectionEngine === 'cv',
+  )
+  const yoloDetection = useYoloDetection(
+    videoRef,
+    isReady,
+    documentMode && detectionEngine === 'yolo',
+  )
+  const activeDetection = detectionEngine === 'yolo' ? yoloDetection : cvDetection
   const {
     corners,
     isDetecting,
@@ -89,7 +120,7 @@ export function CameraCapture({
     workerReady,
     workerEngine,
     reset: resetDetection,
-  } = useEdgeDetection(videoRef, isReady, documentMode)
+  } = activeDetection
 
   const {
     createCaptureDraft,
@@ -430,7 +461,9 @@ export function CameraCapture({
 
       try {
         if (onCaptureMultiple) {
-          const drafts = await analyzeUploadedChequeDraftBatch(file)
+          const drafts = await analyzeUploadedChequeDraftBatch(file, {
+            engine: detectionEngine,
+          })
           if (drafts.length >= 2) {
             setMultiCollected([])
             setMultiQueue(drafts)
@@ -444,7 +477,9 @@ export function CameraCapture({
           }
         }
 
-        const analysis = await analyzeUploadedCheckImage(file)
+        const analysis = await analyzeUploadedCheckImage(file, {
+          engine: detectionEngine,
+        })
         if (!analysis.draft.previewDataURL || !analysis.draft.width || !analysis.draft.height) {
           const message = 'Yuklenen resim islenemedi. Baska bir resim deneyin.'
           setCaptureError(message)
@@ -482,7 +517,7 @@ export function CameraCapture({
         setIsUploadAnalyzing(false)
       }
     },
-    [onCaptureMultiple, onError],
+    [detectionEngine, onCaptureMultiple, onError],
   )
 
   if (captureState === 'error') {
@@ -529,7 +564,12 @@ export function CameraCapture({
           </p>
           {documentMode && workerEngine ? (
             <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/75">
-              Motor: {workerEngine === 'opencv' ? 'OpenCV.js' : 'Yerel Fallback'}
+              Motor:{' '}
+              {workerEngine === 'opencv'
+                ? 'OpenCV.js'
+                : workerEngine === 'yolo'
+                  ? 'YOLO (TFJS)'
+                  : 'Yerel Fallback'}
             </span>
           ) : null}
         </div>
@@ -671,6 +711,13 @@ export function CameraCapture({
         isDetecting={isDetecting}
         isStable={isStable}
         workerEngine={workerEngine}
+        detectionEngine={detectionEngine}
+        onToggleDetectionEngine={() => {
+          cvDetection.reset()
+          yoloDetection.reset()
+          localCornersRef.current = null
+          persistDetectionEngine(detectionEngine === 'yolo' ? 'cv' : 'yolo')
+        }}
         canCapture={canCapture}
         orientationPrompt={orientationPrompt}
         showRotationGuide={Boolean(documentMode && !isOrientationReady)}

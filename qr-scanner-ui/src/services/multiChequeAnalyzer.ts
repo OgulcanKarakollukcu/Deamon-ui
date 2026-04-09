@@ -1,6 +1,7 @@
 import type { CaptureDraft, CornerQuad } from '../types/scanner'
 import type { ReadInputBarcodeFormat, ReadResult } from 'zxing-wasm/reader'
 import { orderCorners, scaleCorners } from '../utils/scanner/geometry'
+import { detectChequesWithYolo } from '../utils/scanner/yoloDetector'
 
 const TARGET_FORMATS: ReadInputBarcodeFormat[] = ['DataMatrix', 'QRCode']
 const DETECTION_IMAGE_EDGE = 640
@@ -8,6 +9,12 @@ const PROCESSING_IMAGE_EDGE = 2200
 const DETECT_TIMEOUT_MS = 8000
 const MAX_RESULTS = 6
 const CHEQUE_ASPECT = 2.35
+
+export type DetectionEngine = 'cv' | 'yolo'
+
+export interface AnalyzeMultiChequeOptions {
+  engine?: DetectionEngine
+}
 
 interface WorkerReadyMessage {
   type: 'READY'
@@ -31,10 +38,12 @@ export interface MultiChequeDraftCapture {
 
 export async function analyzeUploadedChequeDraftBatch(
   file: File,
+  options: AnalyzeMultiChequeOptions = {},
 ): Promise<MultiChequeDraftCapture[]> {
+  const engine: DetectionEngine = options.engine ?? 'cv'
   const image = await loadImageElement(file)
   try {
-    return await analyzeDraftsWithRotationFallback(image)
+    return await analyzeDraftsWithRotationFallback(image, engine)
   } finally {
     URL.revokeObjectURL(image.src)
   }
@@ -97,6 +106,7 @@ function renderImageToCanvas(
 
 async function analyzeDraftsWithRotationFallback(
   image: HTMLImageElement,
+  engine: DetectionEngine,
 ): Promise<MultiChequeDraftCapture[]> {
   for (const rotationDegrees of [0, 90, 180, 270] as const) {
     const { canvas: processingCanvas } = renderImageToCanvas(
@@ -115,7 +125,10 @@ async function analyzeDraftsWithRotationFallback(
       continue
     }
 
-    const cornersListOnDetection = await detectMultipleChequeCorners(detectionImageData)
+    const cornersListOnDetection =
+      engine === 'yolo'
+        ? await detectMultipleChequeCornersWithYolo(detectionCanvas)
+        : await detectMultipleChequeCorners(detectionImageData)
     const quadsOnProcessing = cornersListOnDetection.map((cornersOnDetection) =>
       scaleCorners(
         cornersOnDetection,
@@ -280,6 +293,22 @@ function buildChequeQuadFromBarcode(
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
+}
+
+async function detectMultipleChequeCornersWithYolo(
+  detectionCanvas: HTMLCanvasElement,
+): Promise<CornerQuad[]> {
+  try {
+    const detections = await detectChequesWithYolo(
+      detectionCanvas,
+      detectionCanvas.width,
+      detectionCanvas.height,
+      { maxResults: MAX_RESULTS },
+    )
+    return detections.map((detection) => detection.corners)
+  } catch {
+    return []
+  }
 }
 
 function detectMultipleChequeCorners(imageData: ImageData): Promise<CornerQuad[]> {
