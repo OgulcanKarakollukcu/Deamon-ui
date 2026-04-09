@@ -173,6 +173,7 @@ export function CaptureSession() {
     proceedToCheckPhoto,
     goToHomeLanding,
     saveCheckPhoto,
+    addChecksBulk,
     addAnotherCheck,
     retakeCheck,
     finish,
@@ -392,7 +393,7 @@ export function CaptureSession() {
     case 'check-photo':
       content = (
         <main className="h-[100dvh] w-full overflow-hidden bg-black">
-          <CheckPhotoStep onCapture={saveCheckPhoto} />
+          <CheckPhotoStep onCapture={saveCheckPhoto} onCaptureMultiple={addChecksBulk} />
         </main>
       )
       break

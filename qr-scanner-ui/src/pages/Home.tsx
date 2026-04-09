@@ -52,6 +52,7 @@ export function Home() {
     proceedToCheckPhoto,
     goToHomeLanding,
     saveCheckPhoto,
+    addChecksBulk,
     addAnotherCheck,
     retakeCheck,
     finish,
@@ -87,7 +88,7 @@ export function Home() {
     case 'check-photo':
       content = (
         <main className="h-[100dvh] w-full overflow-hidden bg-black">
-          <CheckPhotoStep onCapture={saveCheckPhoto} />
+          <CheckPhotoStep onCapture={saveCheckPhoto} onCaptureMultiple={addChecksBulk} />
         </main>
       )
       break

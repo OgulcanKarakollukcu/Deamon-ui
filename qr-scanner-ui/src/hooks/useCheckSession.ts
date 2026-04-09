@@ -21,6 +21,7 @@ export interface UseCheckSessionResult {
   proceedToCheckPhoto: () => void
   goToHomeLanding: () => void
   saveCheckPhoto: (dataUrl: string, qrValue?: string) => void
+  addChecksBulk: (items: Array<{ dataUrl: string; qrValue: string }>) => void
   confirmCheck: () => void
   addAnotherCheck: () => void
   retakeCheck: (checkId: string) => void
@@ -34,6 +35,7 @@ type CheckSessionAction =
   | { type: 'PROCEED_TO_CHECK_PHOTO' }
   | { type: 'GO_TO_HOME_LANDING' }
   | { type: 'SAVE_CHECK_PHOTO'; dataUrl: string; qrValue?: string }
+  | { type: 'ADD_CHECKS_BULK'; items: Array<{ dataUrl: string; qrValue: string }> }
   | { type: 'CONFIRM_CHECK' }
   | { type: 'ADD_ANOTHER_CHECK' }
   | { type: 'RETAKE_CHECK'; checkId: string }
@@ -163,6 +165,35 @@ function checkSessionReducer(
       return confirmCurrentCheck(state, nextCurrentCheck)
     }
 
+    case 'ADD_CHECKS_BULK': {
+      const items = action.items
+        .map((item) => ({
+          photoDataUrl: item.dataUrl,
+          qrValue: item.qrValue,
+        }))
+        .filter((item) => item.photoDataUrl.trim() && item.qrValue.trim())
+
+      if (items.length === 0) {
+        return state
+      }
+
+      const newChecks = items.map((item) => ({
+        id: crypto.randomUUID(),
+        photoDataUrl: item.photoDataUrl,
+        qrValue: item.qrValue,
+      }))
+
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          checks: [...state.session.checks, ...newChecks],
+        },
+        currentCheck: createCurrentCheck(),
+        step: 'check-summary',
+      }
+    }
+
     case 'CONFIRM_CHECK':
       // Kullanıcı manuel onay verdiyse mevcut çeki onay akışına alıyoruz.
       return confirmCurrentCheck(state)
@@ -220,6 +251,10 @@ export function useCheckSession(): UseCheckSessionResult {
     dispatch({ type: 'SAVE_CHECK_PHOTO', dataUrl, qrValue })
   }
 
+  const addChecksBulk = (items: Array<{ dataUrl: string; qrValue: string }>): void => {
+    dispatch({ type: 'ADD_CHECKS_BULK', items })
+  }
+
   // Bilgilendirme adımından çek fotoğrafı adımına geçirir.
   const proceedToCheckPhoto = (): void => {
     dispatch({ type: 'PROCEED_TO_CHECK_PHOTO' })
@@ -264,6 +299,7 @@ export function useCheckSession(): UseCheckSessionResult {
     proceedToCheckPhoto,
     goToHomeLanding,
     saveCheckPhoto,
+    addChecksBulk,
     confirmCheck,
     addAnotherCheck,
     retakeCheck,

@@ -5,6 +5,7 @@ import {
   useImageProcessing,
 } from '../../hooks/useImageProcessing'
 import { useQrDecoder } from '../../hooks/useQrDecoder'
+import { analyzeUploadedChequeDraftBatch } from '../../services/multiChequeAnalyzer'
 import { analyzeUploadedCheckImage } from '../../services/uploadedCheckAnalyzer'
 import { useScannerCamera } from '../../hooks/useScannerCamera'
 import type { CaptureDraft, EnhancementMode, ProcessedCapture } from '../../types/scanner'
@@ -19,6 +20,7 @@ type CaptureState = 'loading' | 'scanning' | 'adjusting' | 'preview' | 'error'
 
 export interface CameraCaptureProps {
   onCapture: (dataUrl: string, qrValue?: string) => void
+  onCaptureMultiple?: (items: Array<{ dataUrl: string; qrValue: string }>) => void
   onError?: (error: string) => void
   instructionText?: string
   showOverlay?: boolean
@@ -35,6 +37,7 @@ function resolveCaptureErrorMessage(error: unknown): string {
 
 export function CameraCapture({
   onCapture,
+  onCaptureMultiple,
   onError,
   instructionText,
   showOverlay = true,
@@ -49,6 +52,11 @@ export function CameraCapture({
   const [rawCaptureDataUrl, setRawCaptureDataUrl] = useState<string | null>(null)
   const [captureError, setCaptureError] = useState<string | null>(null)
   const [liveQrValue, setLiveQrValue] = useState<string | null>(null)
+  const [multiQueue, setMultiQueue] = useState<Array<{ draft: CaptureDraft; qrValue: string }> | null>(null)
+  const [multiCollected, setMultiCollected] = useState<Array<{ dataUrl: string; qrValue: string }> | null>(null)
+  // In multi-cheque mode we require the user to explicitly pick a filter per cheque
+  // before allowing "Bu Ceki Ekle" (prevents accidental auto-accept).
+  const [multiSelectedEnhancementMode, setMultiSelectedEnhancementMode] = useState<EnhancementMode | null>(null)
 
   const capturePendingRef = useRef(false)
   const localCornersRef = useRef(captureDraft?.corners ?? null)
@@ -277,6 +285,10 @@ export function CameraCapture({
         setProcessedCapture(result)
         setRawCaptureDataUrl(null)
         setCaptureDraft(null)
+        if (multiQueue && multiCollected && onCaptureMultiple) {
+          // Force explicit filter selection for each cheque in the multi flow.
+          setMultiSelectedEnhancementMode(null)
+        }
         setCaptureState('preview')
       } catch (error: unknown) {
         const message = resolveCaptureErrorMessage(error)
@@ -286,7 +298,7 @@ export function CameraCapture({
         }
       }
     },
-    [captureDraft, onError, processCapturedFrame],
+    [captureDraft, multiCollected, multiQueue, onCaptureMultiple, onError, processCapturedFrame],
   )
 
   const handleRetake = useCallback((): void => {
@@ -296,6 +308,9 @@ export function CameraCapture({
     setRawCaptureDataUrl(null)
     setCaptureError(null)
     setLiveQrValue(null)
+    setMultiQueue(null)
+    setMultiCollected(null)
+    setMultiSelectedEnhancementMode(null)
     localCornersRef.current = null
     resetDetection()
     setCaptureState('scanning')
@@ -315,8 +330,45 @@ export function CameraCapture({
       return
     }
 
+    if (multiQueue && multiCollected && onCaptureMultiple) {
+      const currentQr = liveQrValue?.trim()
+      if (!currentQr) {
+        return
+      }
+
+      const nextCollected = [...multiCollected, { dataUrl: capturedPreviewDataUrl, qrValue: currentQr }]
+
+      if (multiQueue.length <= 1) {
+        // Finish multi-review: push all at once into the session.
+        setMultiQueue(null)
+        setMultiCollected(null)
+        onCaptureMultiple(nextCollected)
+        return
+      }
+
+      const [, ...rest] = multiQueue
+      const next = rest[0]
+      if (!next) {
+        setMultiQueue(null)
+        setMultiCollected(null)
+        onCaptureMultiple(nextCollected)
+        return
+      }
+
+      setMultiCollected(nextCollected)
+      setMultiQueue(rest)
+      setCaptureDraft(next.draft)
+      setProcessedCapture(null)
+      setRawCaptureDataUrl(null)
+      setLiveQrValue(next.qrValue)
+      setCaptureError(null)
+      setMultiSelectedEnhancementMode(null)
+      setCaptureState('adjusting')
+      return
+    }
+
     onCapture(capturedPreviewDataUrl, liveQrValue ?? undefined)
-  }, [capturedPreviewDataUrl, liveQrValue, onCapture, onError, shouldRequireQr])
+  }, [capturedPreviewDataUrl, liveQrValue, multiCollected, multiQueue, onCapture, onCaptureMultiple, onError, shouldRequireQr])
 
   const handleReprocess = useCallback(
     async (mode: EnhancementMode): Promise<void> => {
@@ -377,6 +429,21 @@ export function CameraCapture({
       setCaptureError(null)
 
       try {
+        if (onCaptureMultiple) {
+          const drafts = await analyzeUploadedChequeDraftBatch(file)
+          if (drafts.length >= 2) {
+            setMultiCollected([])
+            setMultiQueue(drafts)
+            setCaptureDraft(drafts[0].draft)
+            setProcessedCapture(null)
+            setRawCaptureDataUrl(null)
+            setLiveQrValue(drafts[0].qrValue)
+            setCaptureError('Birden fazla cek bulundu. Her cek icin koseleri duzeltip filtreyi secin.')
+            setCaptureState('adjusting')
+            return
+          }
+        }
+
         const analysis = await analyzeUploadedCheckImage(file)
         if (!analysis.draft.previewDataURL || !analysis.draft.width || !analysis.draft.height) {
           const message = 'Yuklenen resim islenemedi. Baska bir resim deneyin.'
@@ -415,7 +482,7 @@ export function CameraCapture({
         setIsUploadAnalyzing(false)
       }
     },
-    [onError],
+    [onCaptureMultiple, onError],
   )
 
   if (captureState === 'error') {
@@ -489,12 +556,19 @@ export function CameraCapture({
             {captureError}
           </div>
         ) : null}
+        {multiQueue && multiCollected ? (
+          <div className="absolute bottom-4 left-4 z-30 rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-xs font-semibold text-white/85 backdrop-blur">
+            Çek {multiCollected.length + 1}/{multiCollected.length + multiQueue.length}
+          </div>
+        ) : null}
       </section>
     )
   }
 
   if (captureState === 'preview' && capturedPreviewDataUrl) {
     const captureHasQr = !shouldRequireQr || Boolean(liveQrValue)
+    const inMultiReview = Boolean(multiQueue && multiCollected && onCaptureMultiple)
+    const needsFilterChoice = inMultiReview && multiSelectedEnhancementMode === null
 
     return (
       <section className="flex h-[100dvh] w-full flex-col overflow-hidden bg-black text-white">
@@ -515,6 +589,11 @@ export function CameraCapture({
 
         {documentMode ? (
           <div className="border-t border-white/10 bg-black/80 px-4 py-3">
+            {needsFilterChoice ? (
+              <p className="mb-2 rounded-lg border border-amber-300/50 bg-amber-500/15 px-3 py-2 text-center text-sm text-amber-100">
+                Bu çek için filtre seçin (Renkli / Gelişmiş / S/B). Seçmeden ekleyemezsiniz.
+              </p>
+            ) : null}
             <div className="grid grid-cols-3 gap-2">
               {(['color', 'enhanced', 'bw'] as EnhancementMode[]).map((mode) => (
                 <button
@@ -526,6 +605,7 @@ export function CameraCapture({
                       : 'border border-white/12 bg-white/8 text-white/70 hover:bg-white/15'
                   }`}
                   onClick={() => {
+                    setMultiSelectedEnhancementMode(mode)
                     void handleReprocess(mode)
                   }}
                   disabled={isProcessing}
@@ -553,15 +633,15 @@ export function CameraCapture({
               className="min-h-[48px] rounded-xl border border-white/12 bg-white/10 font-semibold text-white transition-transform active:scale-95"
               onClick={handleRetake}
             >
-              Tekrar Çek
+              {inMultiReview ? 'Iptal' : 'Tekrar Çek'}
             </button>
             <button
               type="button"
               className="min-h-[48px] rounded-xl bg-emerald-600 font-semibold text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
               onClick={handleUseCapturedPhoto}
-              disabled={!captureHasQr}
+              disabled={!captureHasQr || needsFilterChoice}
             >
-              Bu Fotoğrafı Kullan
+              {inMultiReview ? 'Bu Çeki Ekle' : 'Bu Fotoğrafı Kullan'}
             </button>
           </div>
         </div>

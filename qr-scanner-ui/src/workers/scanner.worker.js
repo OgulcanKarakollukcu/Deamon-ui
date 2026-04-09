@@ -4,8 +4,10 @@
  * Message protocol:
  *   IN  { type: 'INIT' }
  *   IN  { type: 'DETECT', imageData: ImageData, width: number, height: number }
+ *   IN  { type: 'DETECT_MULTI', imageData: ImageData, width: number, height: number, maxResults?: number }
  *   OUT { type: 'READY', engine: 'opencv' | 'fallback' }
  *   OUT { type: 'CORNERS', corners: [{x,y}×4] | null }
+ *   OUT { type: 'CORNERS_MULTI', cornersList: [{x,y}×4][] }
  *   OUT { type: 'LOG', level: 'info' | 'warn' | 'error', message: string, details?: object }
  *   OUT { type: 'ERROR', message: string, details?: object }
  */
@@ -55,6 +57,29 @@ self.onmessage = (e) => {
           height: e.data.height,
         });
         self.postMessage({ type: 'CORNERS', corners: null });
+      } finally {
+        processingFrame = false;
+      }
+    }
+  }
+
+  if (type === 'DETECT_MULTI') {
+    if (!processingFrame) {
+      processingFrame = true;
+      try {
+        const maxResults = typeof e.data.maxResults === 'number' ? e.data.maxResults : 6;
+        const cornersList = cvReady && engine === 'opencv'
+          ? detectMultiWithOpenCV(e.data.imageData, e.data.width, e.data.height, maxResults)
+          : detectMultiFallback(e.data.imageData, e.data.width, e.data.height, maxResults);
+        self.postMessage({ type: 'CORNERS_MULTI', cornersList });
+      } catch (err) {
+        postError('Multi detection failed', err, {
+          engine,
+          cvReady,
+          width: e.data.width,
+          height: e.data.height,
+        });
+        self.postMessage({ type: 'CORNERS_MULTI', cornersList: [] });
       } finally {
         processingFrame = false;
       }
@@ -193,6 +218,101 @@ function detectWithOpenCV(imageData, width, height) {
   }
 }
 
+function detectMultiWithOpenCV(imageData, width, height, maxResults = 6) {
+  const src = cv.matFromImageData(imageData);
+  const gray = new cv.Mat();
+  const blurred = new cv.Mat();
+  const binary = new cv.Mat();
+  const inverted = new cv.Mat();
+  const edges = new cv.Mat();
+  const combined = new cv.Mat();
+  const morphed = new cv.Mat();
+  const contours = new cv.MatVector();
+  const hierarchy = new cv.Mat();
+  const closeKernel = cv.Mat.ones(5, 5, cv.CV_8U);
+  const dilateKernel = cv.Mat.ones(3, 3, cv.CV_8U);
+
+  try {
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+    cv.adaptiveThreshold(
+      blurred,
+      binary,
+      255,
+      cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+      cv.THRESH_BINARY,
+      31,
+      15
+    );
+    cv.bitwise_not(binary, inverted);
+    cv.Canny(blurred, edges, 60, 180);
+    cv.bitwise_or(edges, inverted, combined);
+    cv.morphologyEx(combined, morphed, cv.MORPH_CLOSE, closeKernel);
+    cv.dilate(morphed, morphed, dilateKernel);
+
+    cv.findContours(morphed, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+    const frameArea = width * height;
+    const candidates = [];
+
+    for (let i = 0; i < contours.size(); i++) {
+      const contour = contours.get(i);
+      const area = cv.contourArea(contour);
+
+      if (area < frameArea * 0.04 || area > frameArea * 0.98) {
+        contour.delete();
+        continue;
+      }
+
+      const corners = extractCandidateQuad(contour);
+      if (corners) {
+        const score = scoreQuad(corners, width, height, frameArea, blurred.data);
+        if (score > 0) {
+          candidates.push({ corners, score, bbox: bboxOfCorners(corners) });
+        }
+      }
+
+      contour.delete();
+    }
+
+    candidates.sort((a, b) => b.score - a.score);
+
+    const selected = [];
+    for (const candidate of candidates) {
+      if (selected.length >= maxResults) break;
+      if (!candidate.bbox) continue;
+
+      let overlaps = false;
+      for (const kept of selected) {
+        const iou = bboxIou(candidate.bbox, kept.bbox);
+        if (iou > 0.28) {
+          overlaps = true;
+          break;
+        }
+      }
+
+      if (!overlaps) {
+        selected.push(candidate);
+      }
+    }
+
+    return selected.map((item) => item.corners);
+  } finally {
+    src.delete();
+    gray.delete();
+    blurred.delete();
+    binary.delete();
+    inverted.delete();
+    edges.delete();
+    combined.delete();
+    morphed.delete();
+    contours.delete();
+    hierarchy.delete();
+    closeKernel.delete();
+    dilateKernel.delete();
+  }
+}
+
 // ─── Pure-JS fallback detection ──────────────────────────────────────────────
 
 function detectFallback(imageData, width, height) {
@@ -234,6 +354,37 @@ function detectFallback(imageData, width, height) {
   if (meanBrightness < 108) return null;
   if (boundsAspect < 1.6 || boundsAspect > 3.2) return null;
   return area >= width * height * 0.06 ? ordered : null;
+}
+
+function detectMultiFallback(imageData, width, height, maxResults = 6) {
+  const one = detectFallback(imageData, width, height);
+  return one ? [one].slice(0, Math.max(1, maxResults)) : [];
+}
+
+function bboxOfCorners(corners) {
+  if (!corners || corners.length !== 4) return null;
+  const xs = corners.map((p) => p.x);
+  const ys = corners.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  return { minX, minY, maxX, maxY };
+}
+
+function bboxIou(a, b) {
+  const ix0 = Math.max(a.minX, b.minX);
+  const iy0 = Math.max(a.minY, b.minY);
+  const ix1 = Math.min(a.maxX, b.maxX);
+  const iy1 = Math.min(a.maxY, b.maxY);
+  const iw = Math.max(0, ix1 - ix0);
+  const ih = Math.max(0, iy1 - iy0);
+  const inter = iw * ih;
+  if (!inter) return 0;
+  const areaA = Math.max(0, (a.maxX - a.minX)) * Math.max(0, (a.maxY - a.minY));
+  const areaB = Math.max(0, (b.maxX - b.minX)) * Math.max(0, (b.maxY - b.minY));
+  const denom = areaA + areaB - inter;
+  return denom ? inter / denom : 0;
 }
 
 function gaussianBlur5(buf, w, h) {
