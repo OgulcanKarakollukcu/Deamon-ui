@@ -14,17 +14,17 @@ const DETECTION_INTERVAL_MS = 180
 // The selected track is considered stable once its bbox center stays within
 // `STABILITY_CENTER_DELTA_PX` of a fixed anchor and its size within
 // `STABILITY_SIZE_RATIO` for `STABILITY_DURATION_MS` continuously.
-const STABILITY_DURATION_MS = 500
-const STABILITY_CENTER_DELTA_PX = 10
-const STABILITY_SIZE_RATIO = 0.08
-const STABILITY_MIN_CONFIDENCE = 0.45
+const STABILITY_DURATION_MS = 360
+const STABILITY_CENTER_DELTA_PX = 14
+const STABILITY_SIZE_RATIO = 0.10
+const STABILITY_MIN_CONFIDENCE = 0.35
 
 // --- Selection -----------------------------------------------------------
 // Lower IoU bar for ByteTrack; higher bar for confirming a good frame.
 const TRACKER_CONFIDENCE_THRESHOLD = 0.12
 // Hysteresis: a new candidate must beat the currently-selected track's score
 // by this multiplier before we switch. Prevents jitter between candidates.
-const SELECTION_HYSTERESIS_MULTIPLIER = 1.25
+const SELECTION_HYSTERESIS_MULTIPLIER = 1.5
 const MIN_GUIDE_SELECTION_SCORE = 0.2
 const MIN_GUIDE_CONTAINMENT_RATIO = 0.14
 
