@@ -33,7 +33,7 @@ type HoveredAnalysisField = {
   label: string
   value: string
   bbox: DotsMocrBoundingBox
-  tone: 'cyan' | 'emerald'
+  tone: 'amber' | 'emerald'
 }
 
 type AiAnalysisTab = 'dots' | 'qwen'
@@ -288,43 +288,43 @@ export default function ChequeDebugTab() {
 
   return (
     <div className="grid gap-4">
-      <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(6,182,212,0.12),_transparent_26%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.10),_transparent_30%),linear-gradient(180deg,_rgba(248,250,252,0.98),_rgba(255,255,255,1))] px-5 py-4 dark:border-slate-800 dark:bg-[radial-gradient(circle_at_top_left,_rgba(6,182,212,0.16),_transparent_26%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.12),_transparent_28%),linear-gradient(180deg,_rgba(2,6,23,0.88),_rgba(2,6,23,0.96))]">
+      <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm dark:border-neutral-900 dark:bg-neutral-950/40">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-white via-emerald-50/70 to-amber-50/70 px-5 py-4 dark:border-neutral-900 dark:from-neutral-950 dark:via-emerald-500/5 dark:to-amber-500/5">
           <div className="flex items-center gap-3">
-          <div className="rounded-2xl bg-slate-900 p-2.5 text-white shadow-sm dark:bg-slate-100 dark:text-slate-900">
-            <Upload className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
-              <Sparkles className="h-3.5 w-3.5" />
-              Advanced Debug
+            <div className="rounded-2xl bg-slate-900 p-2.5 text-white shadow-sm dark:bg-neutral-100 dark:text-neutral-900">
+              <Upload className="h-5 w-5" />
             </div>
-            <h3 className="mt-3 text-lg font-semibold text-slate-900 dark:text-slate-100">Cheque Debug</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Tek bir image yukle; ayni dosya icin MICR/QR, dots.mocr ve Qwen analizlerini daha duzenli sekilde incele.
-            </p>
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-neutral-800 dark:bg-neutral-950/70 dark:text-neutral-300">
+                <Sparkles className="h-3.5 w-3.5" />
+                Advanced Debug
+              </div>
+              <h3 className="mt-3 text-lg font-semibold text-slate-900 dark:text-neutral-100">Cheque Debug</h3>
+              <p className="text-sm text-slate-500 dark:text-neutral-400">
+                Tek bir image yukle; ayni dosya icin MICR/QR, dots.mocr ve Qwen analizlerini daha duzenli sekilde incele.
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900/70">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Dosya</div>
-            <div className="mt-1 max-w-[220px] truncate font-medium text-slate-900 dark:text-slate-100">{selectedFile?.name ?? 'Henuz secilmedi'}</div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-neutral-800 dark:bg-neutral-950/70">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Dosya</div>
+              <div className="mt-1 max-w-[220px] truncate font-medium text-slate-900 dark:text-neutral-100">{selectedFile?.name ?? 'Henuz secilmedi'}</div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-neutral-800 dark:bg-neutral-950/70">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Boyut</div>
+              <div className="mt-1 font-medium text-slate-900 dark:text-neutral-100">{selectedFile ? formatBytes(selectedFile.size) : '-'}</div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-neutral-800 dark:bg-neutral-950/70">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Aktif Tab</div>
+              <div className="mt-1 font-medium text-slate-900 dark:text-neutral-100">{activeAiTab === 'dots' ? 'dots.mocr' : 'Qwen'}</div>
+            </div>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900/70">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Boyut</div>
-            <div className="mt-1 font-medium text-slate-900 dark:text-slate-100">{selectedFile ? formatBytes(selectedFile.size) : '-'}</div>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900/70">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Aktif Tab</div>
-            <div className="mt-1 font-medium text-slate-900 dark:text-slate-100">{activeAiTab === 'dots' ? 'dots.mocr' : 'Qwen'}</div>
-          </div>
-        </div>
         </div>
 
         <div className="space-y-4 px-5 py-4">
           <div className="grid gap-3 xl:grid-cols-[minmax(260px,1.35fr)_110px_220px_minmax(0,1fr)] xl:items-end">
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Image dosyasi</span>
+              <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-neutral-200">Image dosyasi</span>
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/bmp,image/tiff,image/tif"
@@ -340,12 +340,12 @@ export default function ChequeDebugTab() {
                   setDotsMocrErrorMessage(null)
                   setQwenErrorMessage(null)
                 }}
-                className="block w-full rounded-xl border border-dashed border-slate-300 bg-white px-3 py-3 text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:file:bg-slate-100 dark:file:text-slate-900"
+                className="block w-full rounded-xl border border-dashed border-slate-300 bg-white px-3 py-3 text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:file:bg-neutral-100 dark:file:text-neutral-900"
               />
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">DPI</span>
+              <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-neutral-200">DPI</span>
               <input
                 type="number"
                 min={1}
@@ -354,19 +354,19 @@ export default function ChequeDebugTab() {
                 onChange={(event) => {
                   setDpi(event.target.value)
                 }}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none ring-0 transition focus:border-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none ring-0 transition focus:border-slate-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-500"
               />
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Qwen model</span>
+              <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-neutral-200">Qwen model</span>
               <select
                 value={qwenModelOverride}
                 onChange={(event) => {
                   setQwenModelOverride(event.target.value)
                 }}
                 disabled={(analysisModels?.qwen_models.length ?? 0) === 0}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none ring-0 transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none ring-0 transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-500"
               >
                 {(analysisModels?.qwen_models ?? []).map((model) => (
                   <option key={model} value={model}>
@@ -377,12 +377,12 @@ export default function ChequeDebugTab() {
             </label>
 
             {selectedFile ? (
-              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-                <div className="font-medium text-slate-900 dark:text-slate-100">{selectedFile.name}</div>
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 dark:border-neutral-900 dark:bg-neutral-950/40 dark:text-neutral-300">
+                <div className="font-medium text-slate-900 dark:text-neutral-100">{selectedFile.name}</div>
                 <div className="mt-1">{formatBytes(selectedFile.size)}</div>
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500">
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-400 dark:border-neutral-900 dark:bg-neutral-950/40 dark:text-neutral-500">
                 Dosya secildiginde boyut bilgisi burada gorunecek.
               </div>
             )}
@@ -395,7 +395,7 @@ export default function ChequeDebugTab() {
                 void handleAnalyze()
               }}
               disabled={selectedFile === null || isAnalyzing}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
             >
               <Search className={`h-4 w-4 ${isAnalyzing ? 'animate-pulse' : ''}`} />
               {isAnalyzing ? 'Analiz Calisiyor...' : 'MICR ve QR Oku'}
@@ -407,7 +407,7 @@ export default function ChequeDebugTab() {
                 void handleAnalyzeDotsMocr()
               }}
               disabled={selectedFile === null || isAnalyzingDotsMocr}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-3 text-sm font-semibold text-cyan-800 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300 dark:hover:bg-cyan-500/20"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20"
             >
               <ScanLine className={`h-4 w-4 ${isAnalyzingDotsMocr ? 'animate-pulse' : ''}`} />
               {isAnalyzingDotsMocr ? 'dots.mocr Calisiyor...' : 'dots.mocr Analiz'}
@@ -427,7 +427,7 @@ export default function ChequeDebugTab() {
           </div>
 
           {errorMessage ? (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-600/50 dark:bg-rose-500/10 dark:text-rose-300">
               {errorMessage}
             </div>
           ) : null}
@@ -439,7 +439,7 @@ export default function ChequeDebugTab() {
           ) : null}
 
           {qwenErrorMessage ? (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300">
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-600/50 dark:bg-rose-500/10 dark:text-rose-300">
               qwen: {qwenErrorMessage}
             </div>
           ) : null}
@@ -450,34 +450,34 @@ export default function ChequeDebugTab() {
             </div>
           ) : null}
 
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-neutral-400">
             Not: dots.mocr sabit/varsayilan model akisi ile calisir. Qwen dropdown'u sadece image destekli ve OpenAI-compatible `chat/completions` ile calisan modelleri gosterir; istersen `QWEN_VISION_MODELS` ile daha da daraltabilirsin.
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-neutral-400">
             dots.mocr ve Qwen upload akisleri su an PNG/JPEG dosyalari destekler. Diger formatlarda backend acik bir hata dondurur.
           </p>
         </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(420px,0.9fr)] xl:items-start">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-neutral-900 dark:bg-neutral-950/40">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Cek Preview</h3>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-neutral-100">Cek Preview</h3>
+              <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">
                 Aktif AI tabindaki alanlar hover ile cek uzerinde vurgulanir.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
                 DPI {resolvedDpi.toString()}
               </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
                 {selectedFileMimeType || 'image/*'}
               </span>
             </div>
           </div>
-          <div className="mt-4 flex min-h-[440px] items-center justify-center rounded-[24px] border border-dashed border-slate-300 bg-[radial-gradient(circle_at_top,_rgba(148,163,184,0.12),_transparent_55%),linear-gradient(180deg,_rgba(248,250,252,1),_rgba(241,245,249,0.9))] p-4 xl:min-h-[72vh] dark:border-slate-700 dark:bg-[radial-gradient(circle_at_top,_rgba(30,41,59,0.6),_transparent_52%),linear-gradient(180deg,_rgba(15,23,42,0.96),_rgba(2,6,23,0.9))]">
+          <div className="mt-4 flex min-h-[440px] items-center justify-center rounded-[24px] border border-dashed border-slate-300 bg-gradient-to-br from-white via-slate-50 to-amber-50/60 p-4 xl:min-h-[72vh] dark:border-neutral-800 dark:bg-gradient-to-br dark:from-neutral-950 dark:via-neutral-950 dark:to-emerald-500/5">
             {previewUrl ? (
               <div className="relative inline-block">
                 <img
@@ -489,8 +489,8 @@ export default function ChequeDebugTab() {
                   <div className="pointer-events-none absolute inset-0">
                     <div
                       className={`absolute rounded-lg border-2 shadow-[0_0_0_9999px_rgba(15,23,42,0.14)] ${
-                        hoveredAnalysisField.tone === 'cyan'
-                          ? 'border-cyan-400 bg-cyan-400/10'
+                        hoveredAnalysisField.tone === 'amber'
+                          ? 'border-amber-400 bg-amber-400/10'
                           : 'border-emerald-400 bg-emerald-400/10'
                       }`}
                       style={{
@@ -506,7 +506,7 @@ export default function ChequeDebugTab() {
                     >
                       <div
                         className={`absolute left-0 top-0 -translate-y-[calc(100%+8px)] rounded-md px-2 py-1 text-[11px] font-semibold text-white shadow-lg ${
-                          hoveredAnalysisField.tone === 'cyan' ? 'bg-cyan-600' : 'bg-emerald-600'
+                          hoveredAnalysisField.tone === 'amber' ? 'bg-amber-600' : 'bg-emerald-600'
                         }`}
                       >
                         {hoveredAnalysisField.label}: {hoveredAnalysisField.value}
@@ -516,20 +516,20 @@ export default function ChequeDebugTab() {
                 ) : null}
               </div>
             ) : (
-              <p className="text-sm text-slate-500 dark:text-slate-400">Henuz image secilmedi.</p>
+              <p className="text-sm text-slate-500 dark:text-neutral-400">Henuz image secilmedi.</p>
             )}
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 xl:max-h-[84vh] xl:overflow-y-auto dark:border-slate-800 dark:bg-slate-950/40">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 xl:max-h-[84vh] xl:overflow-y-auto dark:border-neutral-900 dark:bg-neutral-950/40">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Analiz Sonucu</h3>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-neutral-100">Analiz Sonucu</h3>
+              <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">
                 Temel OCR sonucunu ustte, AI parser sonucunu sekmelerde inceleyebilirsin.
               </p>
             </div>
-            <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-900">
+            <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-neutral-800 dark:bg-neutral-950">
               <button
                 type="button"
                 onClick={() => {
@@ -538,8 +538,8 @@ export default function ChequeDebugTab() {
                 }}
                 className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${
                   activeAiTab === 'dots'
-                    ? 'bg-cyan-500 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-800'
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-white dark:text-neutral-300 dark:hover:bg-neutral-800'
                 }`}
               >
                 <ScanLine className="h-4 w-4" />
@@ -554,7 +554,7 @@ export default function ChequeDebugTab() {
                 className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${
                   activeAiTab === 'qwen'
                     ? 'bg-emerald-500 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-800'
+                    : 'text-slate-600 hover:bg-white dark:text-neutral-300 dark:hover:bg-neutral-800'
                 }`}
               >
                 <Sparkles className="h-4 w-4" />
@@ -564,10 +564,10 @@ export default function ChequeDebugTab() {
           </div>
           {result || dotsMocrResult || qwenResult ? (
             <div className="mt-4 grid gap-4">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">MICR</div>
-                <div className="mt-2 break-all font-mono text-sm text-slate-900 dark:text-slate-100">{normalizedMicr || '-'}</div>
-                <dl className="mt-3 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">MICR</div>
+                <div className="mt-2 break-all font-mono text-sm text-slate-900 dark:text-neutral-100">{normalizedMicr || '-'}</div>
+                <dl className="mt-3 space-y-1 text-sm text-slate-700 dark:text-neutral-200">
                   <div className="flex items-start justify-between gap-3">
                     <dt>Çek Seri No</dt>
                     <dd className="font-mono">{parsedMicrFields?.chequeSerialNo ?? '-'}</dd>
@@ -586,10 +586,10 @@ export default function ChequeDebugTab() {
                   </div>
                 </dl>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">QR</div>
-                <div className="mt-2 break-all font-mono text-sm text-slate-900 dark:text-slate-100">{result?.qr_data || '-'}</div>
-                <dl className="mt-3 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">QR</div>
+                <div className="mt-2 break-all font-mono text-sm text-slate-900 dark:text-neutral-100">{result?.qr_data || '-'}</div>
+                <dl className="mt-3 space-y-1 text-sm text-slate-700 dark:text-neutral-200">
                   <div className="flex items-start justify-between gap-3">
                     <dt>Çek Seri No</dt>
                     <dd className="font-mono">{parsedQrFields?.chequeSerialNo ?? '-'}</dd>
@@ -620,7 +620,7 @@ export default function ChequeDebugTab() {
               <div
                 className={`rounded-[24px] border p-4 ${
                   activeAiTab === 'dots'
-                    ? 'border-cyan-200 bg-cyan-50/60 dark:border-cyan-500/30 dark:bg-cyan-500/10'
+                    ? 'border-amber-200 bg-amber-50/60 dark:border-amber-500/30 dark:bg-amber-500/10'
                     : 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-500/30 dark:bg-emerald-500/10'
                 }`}
               >
@@ -629,13 +629,13 @@ export default function ChequeDebugTab() {
                     <div
                       className={`text-xs font-semibold uppercase tracking-wide ${
                         activeAiTab === 'dots'
-                          ? 'text-cyan-700 dark:text-cyan-300'
+                          ? 'text-amber-700 dark:text-amber-300'
                           : 'text-emerald-700 dark:text-emerald-300'
                       }`}
                     >
                       {activeAiTab === 'dots' ? 'dots.mocr' : 'Qwen'}
                     </div>
-                    <h4 className="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">
+                    <h4 className="mt-2 text-base font-semibold text-slate-900 dark:text-neutral-100">
                       {activeAiTab === 'dots' ? 'Structured cheque parse' : 'Vision LLM parse'}
                     </h4>
                   </div>
@@ -643,34 +643,34 @@ export default function ChequeDebugTab() {
                     <span
                       className={`rounded-full border bg-white px-2.5 py-1 text-[11px] ${
                         activeAiTab === 'dots'
-                          ? 'border-cyan-200 text-cyan-700 dark:border-cyan-500/30 dark:bg-slate-950/70 dark:text-cyan-300'
-                          : 'border-emerald-200 text-emerald-700 dark:border-emerald-500/30 dark:bg-slate-950/70 dark:text-emerald-300'
+                          ? 'border-amber-200 text-amber-700 dark:border-amber-500/30 dark:bg-neutral-950/70 dark:text-amber-300'
+                          : 'border-emerald-200 text-emerald-700 dark:border-emerald-500/30 dark:bg-neutral-950/70 dark:text-emerald-300'
                       }`}
                     >
                       {activeAiResult?.model || '-'}
                     </span>
-                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-300">
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600 dark:border-neutral-800 dark:bg-neutral-950/70 dark:text-neutral-300">
                       {formatDuration(activeAiResult?.total_ms)}
                     </span>
                   </div>
                 </div>
 
                 <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/60">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Prompt</div>
-                    <div className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">
+                  <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 dark:border-neutral-800 dark:bg-neutral-950/60">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Prompt</div>
+                    <div className="mt-1 text-sm font-medium text-slate-900 dark:text-neutral-100">
                       {activeAiResult?.prompt_mode || '-'}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/60">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Alan sayisi</div>
-                    <div className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">
+                  <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 dark:border-neutral-800 dark:bg-neutral-950/60">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Alan sayisi</div>
+                    <div className="mt-1 text-sm font-medium text-slate-900 dark:text-neutral-100">
                       {activeAiDisplayFields?.length ?? 0}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/60">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Durum</div>
-                    <div className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">
+                  <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 dark:border-neutral-800 dark:bg-neutral-950/60">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Durum</div>
+                    <div className="mt-1 text-sm font-medium text-slate-900 dark:text-neutral-100">
                       {activeAiResult ? 'Hazir' : activeAiErrorMessage ? 'Hatali' : 'Bekliyor'}
                     </div>
                   </div>
@@ -688,9 +688,9 @@ export default function ChequeDebugTab() {
                       {activeAiDisplayFields.map((field) => (
                         <div
                           key={field.keyPath || field.label}
-                          className={`rounded-2xl border bg-white p-3 transition dark:bg-slate-950/60 ${
+                          className={`rounded-2xl border bg-white p-3 transition dark:bg-neutral-950/60 ${
                             activeAiTab === 'dots'
-                              ? 'border-cyan-200 hover:border-cyan-300 dark:border-cyan-500/30'
+                              ? 'border-amber-200 hover:border-amber-300 dark:border-amber-500/30'
                               : 'border-emerald-200 hover:border-emerald-300 dark:border-emerald-500/30'
                           }`}
                           onMouseEnter={() => {
@@ -699,23 +699,23 @@ export default function ChequeDebugTab() {
                                 label: field.label,
                                 value: field.value,
                                 bbox: field.bbox,
-                                tone: activeAiTab === 'dots' ? 'cyan' : 'emerald',
+                                tone: activeAiTab === 'dots' ? 'amber' : 'emerald',
                               })
                             }
                           }}
                           onMouseLeave={() => {
                             setHoveredAnalysisField((current) =>
                               current?.label === field.label &&
-                              current.tone === (activeAiTab === 'dots' ? 'cyan' : 'emerald')
+                              current.tone === (activeAiTab === 'dots' ? 'amber' : 'emerald')
                                 ? null
                                 : current,
                             )
                           }}
                         >
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-neutral-400">
                             {field.label}
                           </p>
-                          <p className="mt-1 break-all font-mono text-[12px] text-slate-700 dark:text-slate-300">
+                          <p className="mt-1 break-all font-mono text-[12px] text-slate-700 dark:text-neutral-300">
                             {field.value}
                           </p>
                         </div>
@@ -727,7 +727,7 @@ export default function ChequeDebugTab() {
                     </p>
                   )
                 ) : (
-                  <p className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-400">
+                  <p className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-sm text-slate-500 dark:border-neutral-800 dark:bg-neutral-950/40 dark:text-neutral-400">
                     {activeAiTab === 'dots'
                       ? 'dots.mocr analizi henuz calistirilmadi.'
                       : 'Qwen analizi henuz calistirilmadi.'}
@@ -736,19 +736,19 @@ export default function ChequeDebugTab() {
 
                 {activeAiResult ? (
                   <details
-                    className={`mt-4 rounded-2xl border bg-white px-3 py-2 dark:bg-slate-950/70 ${
+                    className={`mt-4 rounded-2xl border bg-white px-3 py-2 dark:bg-neutral-950/70 ${
                       activeAiTab === 'dots'
-                        ? 'border-cyan-200 dark:border-cyan-500/30'
+                        ? 'border-amber-200 dark:border-amber-500/30'
                         : 'border-emerald-200 dark:border-emerald-500/30'
                     }`}
                   >
-                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300">
+                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-neutral-300">
                       Ham JSON
                     </summary>
                     <pre
-                      className={`mt-2 max-h-56 overflow-auto rounded-xl border bg-slate-50 p-3 text-[11px] text-slate-700 dark:bg-slate-950 dark:text-slate-300 ${
+                      className={`mt-2 max-h-56 overflow-auto rounded-xl border bg-slate-50 p-3 text-[11px] text-slate-700 dark:bg-neutral-950 dark:text-neutral-300 ${
                         activeAiTab === 'dots'
-                          ? 'border-cyan-200 dark:border-cyan-500/30'
+                          ? 'border-amber-200 dark:border-amber-500/30'
                           : 'border-emerald-200 dark:border-emerald-500/30'
                       }`}
                     >
@@ -758,12 +758,12 @@ export default function ChequeDebugTab() {
                 ) : null}
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                   <Clock3 className="h-4 w-4" />
                   Sureler
                 </div>
-                <dl className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
+                <dl className="mt-3 space-y-2 text-sm text-slate-700 dark:text-neutral-200">
                   <div className="flex items-center justify-between gap-3">
                     <dt>MICR</dt>
                     <dd>{formatDuration(result?.micr_ms)}</dd>
@@ -780,18 +780,18 @@ export default function ChequeDebugTab() {
                     <dt>Qwen</dt>
                     <dd>{formatDuration(qwenResult?.total_ms)}</dd>
                   </div>
-                  <div className="flex items-center justify-between gap-3 font-semibold text-slate-900 dark:text-slate-100">
+                  <div className="flex items-center justify-between gap-3 font-semibold text-slate-900 dark:text-neutral-100">
                     <dt>Toplam</dt>
                     <dd>{formatDuration(result?.total_ms)}</dd>
                   </div>
                 </dl>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-900 dark:bg-neutral-950/40">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">
                   <Binary className="h-4 w-4" />
                   Meta
                 </div>
-                <dl className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
+                <dl className="mt-3 space-y-2 text-sm text-slate-700 dark:text-neutral-200">
                   <div className="flex items-center justify-between gap-3">
                     <dt>DPI</dt>
                     <dd>{result ? result.effective_dpi.toString() : '-'}</dd>
@@ -808,7 +808,7 @@ export default function ChequeDebugTab() {
               </div>
             </div>
           ) : (
-            <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+            <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-sm text-slate-500 dark:border-neutral-800 dark:bg-neutral-950/40 dark:text-neutral-400">
               Bir image secip analizi baslatinca MICR, QR ve sure metrikleri burada gorunecek.
             </div>
           )}
