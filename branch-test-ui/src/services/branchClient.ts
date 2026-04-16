@@ -1,8 +1,10 @@
 import type {
   BordroScanMetadata,
+  ChequeAnalysisModels,
   CleanupReservationsResponse,
   ChequeImageDebugResult,
   DotsMocrChequeAnalysisResult,
+  QwenChequeAnalysisResult,
   ChequeMetadata,
   CreateBordroRequest,
   DocumentScanMetadata,
@@ -48,8 +50,10 @@ const RELEASE_SCANNER_PATH = '/daemon.management.ManagementService/ReleaseScanne
 const RESET_SCANNER_PATH = '/daemon.management.ManagementService/ResetScanner'
 const CLEANUP_RESERVATIONS_PATH = '/daemon.management.ManagementService/CleanupReservations'
 const CREATE_BORDRO_PATH = '/daemon.cheque.ChequeService/CreateBordro'
+const LIST_CHEQUE_ANALYSIS_MODELS_PATH = '/daemon.cheque.ChequeService/ListChequeAnalysisModels'
 const ANALYZE_CHEQUE_IMAGE_PATH = '/daemon.cheque.ChequeService/AnalyzeChequeImage'
 const ANALYZE_CHEQUE_WITH_DOTS_MOCR_PATH = '/daemon.cheque.ChequeService/AnalyzeChequeWithDotsMocr'
+const ANALYZE_CHEQUE_WITH_QWEN_PATH = '/daemon.cheque.ChequeService/AnalyzeChequeWithQwen'
 const SCAN_CHEQUE_PATH = '/daemon.cheque.ChequeService/ScanCheque'
 const SCAN_ALL_CHEQUE_PATH = '/daemon.cheque.ChequeService/ScanAllCheque'
 const SCAN_BORDRO_PATH = '/daemon.cheque.ChequeService/ScanBordro'
@@ -108,6 +112,24 @@ type ProtoDotsMocrChequeAnalysisResult = {
   prompt_mode: string
   content: string
   raw_response_json: string
+  total_ms: number
+}
+
+type ProtoQwenChequeAnalysisResult = {
+  object_path: string
+  front_image_path: string
+  model: string
+  prompt_mode: string
+  content: string
+  raw_response_json: string
+  total_ms: number
+}
+
+type ProtoChequeAnalysisModels = {
+  dots_mocr_models: string[]
+  qwen_models: string[]
+  default_dots_mocr_model: string
+  default_qwen_model: string
 }
 
 type PcDaemonStatus = 'available' | 'reserved' | 'unavailable'
@@ -1211,6 +1233,7 @@ function parseAnalyzeChequeWithDotsMocrResponse(
     prompt_mode: '',
     content: '',
     raw_response_json: '',
+    total_ms: 0,
   }
 
   while (offset < payload.length) {
@@ -1236,6 +1259,111 @@ function parseAnalyzeChequeWithDotsMocrResponse(
         result.content = decoded
       } else if (fieldNumber === 6) {
         result.raw_response_json = decoded
+      }
+
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 7 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      result.total_ms = value.value
+      offset = value.offset
+      continue
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  return result
+}
+
+function parseAnalyzeChequeWithQwenResponse(
+  payload: Uint8Array,
+): ProtoQwenChequeAnalysisResult {
+  let offset = 0
+  const result: ProtoQwenChequeAnalysisResult = {
+    object_path: '',
+    front_image_path: '',
+    model: '',
+    prompt_mode: '',
+    content: '',
+    raw_response_json: '',
+    total_ms: 0,
+  }
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      const decoded = decodeUtf8(value.value)
+
+      if (fieldNumber === 1) {
+        result.object_path = decoded
+      } else if (fieldNumber === 2) {
+        result.front_image_path = decoded
+      } else if (fieldNumber === 3) {
+        result.model = decoded
+      } else if (fieldNumber === 4) {
+        result.prompt_mode = decoded
+      } else if (fieldNumber === 5) {
+        result.content = decoded
+      } else if (fieldNumber === 6) {
+        result.raw_response_json = decoded
+      }
+
+      offset = value.offset
+      continue
+    }
+
+    if (fieldNumber === 7 && wireType === 0) {
+      const value = decodeVarint(payload, offset)
+      result.total_ms = value.value
+      offset = value.offset
+      continue
+    }
+
+    offset = skipUnknownField(payload, offset, wireType)
+  }
+
+  return result
+}
+
+function parseListChequeAnalysisModelsResponse(
+  payload: Uint8Array,
+): ProtoChequeAnalysisModels {
+  let offset = 0
+  const result: ProtoChequeAnalysisModels = {
+    dots_mocr_models: [],
+    qwen_models: [],
+    default_dots_mocr_model: '',
+    default_qwen_model: '',
+  }
+
+  while (offset < payload.length) {
+    const tagInfo = decodeVarint(payload, offset)
+    offset = tagInfo.offset
+
+    const fieldNumber = tagInfo.value >>> 3
+    const wireType = tagInfo.value & 0x07
+
+    if (wireType === 2) {
+      const value = readLengthDelimited(payload, offset)
+      const decoded = decodeUtf8(value.value)
+
+      if (fieldNumber === 1) {
+        result.dots_mocr_models.push(decoded)
+      } else if (fieldNumber === 2) {
+        result.qwen_models.push(decoded)
+      } else if (fieldNumber === 3) {
+        result.default_dots_mocr_model = decoded
+      } else if (fieldNumber === 4) {
+        result.default_qwen_model = decoded
       }
 
       offset = value.offset
@@ -2131,9 +2259,30 @@ function encodeAnalyzeChequeImageRequest(params: {
 }
 
 function encodeAnalyzeChequeWithDotsMocrRequest(params: {
-  object_path: string
+  object_path?: string
+  image?: Uint8Array
+  image_mime_type?: string
+  model_override?: string
 }): Uint8Array {
-  return encodeStringField(1, params.object_path)
+  const fields: Uint8Array[] = []
+
+  if (params.object_path && params.object_path.trim().length > 0) {
+    fields.push(encodeStringField(1, params.object_path))
+  }
+
+  if (params.image && params.image.length > 0) {
+    fields.push(encodeBytesField(2, params.image))
+  }
+
+  if (params.image_mime_type && params.image_mime_type.trim().length > 0) {
+    fields.push(encodeStringField(3, params.image_mime_type))
+  }
+
+  if (params.model_override && params.model_override.trim().length > 0) {
+    fields.push(encodeStringField(4, params.model_override))
+  }
+
+  return concatBytes(fields)
 }
 
 function encodeScanChequeRequest(params: {
@@ -2416,6 +2565,22 @@ export async function createBordro(request: CreateBordroRequest): Promise<{ bord
   return parseCreateBordroResponse(response)
 }
 
+export async function listChequeAnalysisModels(): Promise<ChequeAnalysisModels> {
+  const response = await callGrpcWebUnary(
+    'listChequeAnalysisModels',
+    LIST_CHEQUE_ANALYSIS_MODELS_PATH,
+    new Uint8Array(),
+  )
+
+  const result = parseListChequeAnalysisModelsResponse(response)
+  return {
+    dots_mocr_models: result.dots_mocr_models,
+    qwen_models: result.qwen_models,
+    default_dots_mocr_model: result.default_dots_mocr_model,
+    default_qwen_model: result.default_qwen_model,
+  }
+}
+
 export async function analyzeChequeImage(params: {
   image: Uint8Array
   dpi: number
@@ -2441,6 +2606,7 @@ export async function analyzeChequeImage(params: {
 
 export async function analyzeChequeWithDotsMocr(params: {
   object_path: string
+  model_override?: string
 }): Promise<DotsMocrChequeAnalysisResult> {
   const response = await callGrpcWebUnary(
     'analyzeChequeWithDotsMocr',
@@ -2456,6 +2622,53 @@ export async function analyzeChequeWithDotsMocr(params: {
     prompt_mode: result.prompt_mode,
     content: result.content,
     raw_response_json: result.raw_response_json,
+    total_ms: result.total_ms,
+  }
+}
+
+export async function analyzeUploadedChequeWithDotsMocr(params: {
+  image: Uint8Array
+  image_mime_type?: string
+  model_override?: string
+}): Promise<DotsMocrChequeAnalysisResult> {
+  const response = await callGrpcWebUnary(
+    'analyzeUploadedChequeWithDotsMocr',
+    ANALYZE_CHEQUE_WITH_DOTS_MOCR_PATH,
+    encodeAnalyzeChequeWithDotsMocrRequest(params),
+  )
+
+  const result = parseAnalyzeChequeWithDotsMocrResponse(response)
+  return {
+    object_path: result.object_path,
+    front_image_path: result.front_image_path,
+    model: result.model,
+    prompt_mode: result.prompt_mode,
+    content: result.content,
+    raw_response_json: result.raw_response_json,
+    total_ms: result.total_ms,
+  }
+}
+
+export async function analyzeUploadedChequeWithQwen(params: {
+  image: Uint8Array
+  image_mime_type?: string
+  model_override?: string
+}): Promise<QwenChequeAnalysisResult> {
+  const response = await callGrpcWebUnary(
+    'analyzeUploadedChequeWithQwen',
+    ANALYZE_CHEQUE_WITH_QWEN_PATH,
+    encodeAnalyzeChequeWithDotsMocrRequest(params),
+  )
+
+  const result = parseAnalyzeChequeWithQwenResponse(response)
+  return {
+    object_path: result.object_path,
+    front_image_path: result.front_image_path,
+    model: result.model,
+    prompt_mode: result.prompt_mode,
+    content: result.content,
+    raw_response_json: result.raw_response_json,
+    total_ms: result.total_ms,
   }
 }
 

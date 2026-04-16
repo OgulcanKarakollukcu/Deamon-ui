@@ -155,6 +155,27 @@ function mapScannersToBranchDaemons(scanners: Scanner[]): BranchDaemon[] {
   ]
 }
 
+function mapSupportSnapshotToBranchDaemons(snapshot: SupportSnapshot): BranchDaemon[] {
+  const baseUrl = getBranchDaemonBaseUrl()
+  const generatedAtUnix = snapshot.diagnostics.generated_at_unix
+  const lastChecked =
+    Number.isFinite(generatedAtUnix) && generatedAtUnix > 0
+      ? new Date(generatedAtUnix * 1000).toISOString()
+      : new Date().toISOString()
+
+  return [
+    {
+      branch_daemon_id: normalizeBranchDaemonId(baseUrl),
+      branch_daemon_addr: baseUrl,
+      status: 'online',
+      active_pc_daemon_count:
+        snapshot.diagnostics.online_pc_daemon_count || snapshot.daemons.length,
+      active_scanner_count: snapshot.diagnostics.scanner_count || snapshot.scanners.length,
+      last_checked: lastChecked,
+    },
+  ]
+}
+
 function getStatusBadgeClass(status: PcDaemon['status']): string {
   if (status === 'available') {
     return 'border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-600/50 dark:bg-emerald-500/10 dark:text-emerald-300'
@@ -209,26 +230,33 @@ export default function DashboardTab({
     try {
       addLog('info', 'Istek: listScanners {}')
       const scanners = await listScanners()
-      const mappedPcs = mapScannersToPcDaemons(scanners)
-      const mappedBranchDaemons = mapScannersToBranchDaemons(scanners)
+      const fallbackPcs = mapScannersToPcDaemons(scanners)
+      const fallbackBranchDaemons = mapScannersToBranchDaemons(scanners)
 
-      setPcs(mappedPcs)
-      setBranchDaemons(mappedBranchDaemons)
-      onActivePcDaemonCountChange(mappedPcs.length)
-      onActiveBranchDaemonCountChange(mappedBranchDaemons.length)
+      setPcs(fallbackPcs)
+      setBranchDaemons(fallbackBranchDaemons)
+      onActivePcDaemonCountChange(fallbackPcs.length)
+      onActiveBranchDaemonCountChange(fallbackBranchDaemons.length)
 
       addLog(
         'info',
-        `Yanit: listScanners scanners=${scanners.length}, pcs=${mappedPcs.length}, bds=${mappedBranchDaemons.length}`,
+        `Yanit: listScanners scanners=${scanners.length}, pcs=${fallbackPcs.length}, bds=${fallbackBranchDaemons.length}`,
       )
 
       try {
         addLog('info', 'Istek: getSupportSnapshot {}')
         const snapshot = await getSupportSnapshot()
+        const snapshotPcs = snapshot.daemons.length > 0 ? snapshot.daemons : fallbackPcs
+        const snapshotBranchDaemons = mapSupportSnapshotToBranchDaemons(snapshot)
+
+        setPcs(snapshotPcs)
+        setBranchDaemons(snapshotBranchDaemons)
+        onActivePcDaemonCountChange(snapshotPcs.length)
+        onActiveBranchDaemonCountChange(snapshotBranchDaemons.length)
         setSupportSnapshot(snapshot)
         addLog(
           'info',
-          `Yanit: getSupportSnapshot reservations=${snapshot.reservations.length}, scanners=${snapshot.scanners.length}`,
+          `Yanit: getSupportSnapshot reservations=${snapshot.reservations.length}, scanners=${snapshot.scanners.length}, daemons=${snapshot.daemons.length}`,
         )
       } catch (snapshotError) {
         const snapshotMessage =

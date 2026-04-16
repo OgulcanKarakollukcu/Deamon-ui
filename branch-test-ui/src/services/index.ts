@@ -1,6 +1,8 @@
 export {
   analyzeChequeImage,
   analyzeChequeWithDotsMocr,
+  analyzeUploadedChequeWithDotsMocr,
+  analyzeUploadedChequeWithQwen,
   chequeHealth,
   cleanupReservations,
   createBordro,
@@ -8,6 +10,7 @@ export {
   getSupportSnapshot,
   getStorageObject,
   getStorageObjectWithContentType,
+  listChequeAnalysisModels,
   listScanners,
   listStorageObjects,
   releaseScanner,

@@ -169,6 +169,24 @@ export type DotsMocrChequeAnalysisResult = {
   prompt_mode: string
   content: string
   raw_response_json: string
+  total_ms: number
+}
+
+export type QwenChequeAnalysisResult = {
+  object_path: string
+  front_image_path: string
+  model: string
+  prompt_mode: string
+  content: string
+  raw_response_json: string
+  total_ms: number
+}
+
+export type ChequeAnalysisModels = {
+  dots_mocr_models: string[]
+  qwen_models: string[]
+  default_dots_mocr_model: string
+  default_qwen_model: string
 }
 
 export type ScanAllChequeProgress = {

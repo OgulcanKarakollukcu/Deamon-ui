@@ -2,6 +2,14 @@ export type DotsMocrDisplayField = {
   keyPath: string
   label: string
   value: string
+  bbox: DotsMocrBoundingBox | null
+}
+
+export type DotsMocrBoundingBox = {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
 }
 
 function normalizeScalarValue(value: unknown): string {
@@ -35,6 +43,42 @@ function formatRawKeyPath(pathSegments: string[]): string {
   }, '')
 }
 
+function parseBoundingBox(value: unknown): DotsMocrBoundingBox | null {
+  if (!Array.isArray(value) || value.length !== 4) {
+    return null
+  }
+
+  const [x1, y1, x2, y2] = value
+  if (![x1, y1, x2, y2].every((item) => typeof item === 'number' && Number.isFinite(item))) {
+    return null
+  }
+
+  const rawValues = [x1, y1, x2, y2]
+  const usesUnitInterval = rawValues.every((item) => item >= 0 && item <= 1.000001)
+  const scale = usesUnitInterval ? 1000 : 1
+
+  return {
+    x1: Math.min(1000, Math.max(0, x1 * scale)),
+    y1: Math.min(1000, Math.max(0, y1 * scale)),
+    x2: Math.min(1000, Math.max(0, x2 * scale)),
+    y2: Math.min(1000, Math.max(0, y2 * scale)),
+  }
+}
+
+function isFieldValueObject(
+  value: unknown,
+): value is {
+  value?: unknown
+  bbox?: unknown
+} {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+
+  const record = value as Record<string, unknown>
+  return 'value' in record || 'bbox' in record
+}
+
 function flattenValue(
   value: unknown,
   pathSegments: string[],
@@ -52,6 +96,7 @@ function flattenValue(
       keyPath,
       label: keyPath,
       value: normalizeScalarValue(value),
+      bbox: null,
     })
     return
   }
@@ -63,6 +108,7 @@ function flattenValue(
         keyPath,
         label: keyPath,
         value: '-',
+        bbox: null,
       })
       return
     }
@@ -73,6 +119,7 @@ function flattenValue(
         keyPath,
         label: keyPath,
         value: value.map(normalizeScalarValue).join(', '),
+        bbox: null,
       })
       return
     }
@@ -84,18 +131,54 @@ function flattenValue(
   }
 
   if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
+    if (isFieldValueObject(value)) {
+      const keyPath = formatRawKeyPath(pathSegments)
+      const parsedBbox = parseBoundingBox(value.bbox)
+      fields.push({
+        keyPath,
+        label: keyPath,
+        value: normalizeScalarValue(value.value),
+        bbox: parsedBbox,
+      })
+      return
+    }
+
+    const record = value as Record<string, unknown>
+    const entries = Object.entries(record)
     if (entries.length === 0) {
       const keyPath = formatRawKeyPath(pathSegments)
       fields.push({
         keyPath,
         label: keyPath,
         value: '-',
+        bbox: null,
       })
       return
     }
 
     for (const [key, nestedValue] of entries) {
+      if (key.endsWith('_bbox')) {
+        continue
+      }
+
+      const siblingBbox = parseBoundingBox(record[`${key}_bbox`])
+      if (
+        nestedValue === null ||
+        nestedValue === undefined ||
+        typeof nestedValue === 'string' ||
+        typeof nestedValue === 'number' ||
+        typeof nestedValue === 'boolean'
+      ) {
+        const keyPath = formatRawKeyPath([...pathSegments, key])
+        fields.push({
+          keyPath,
+          label: keyPath,
+          value: normalizeScalarValue(nestedValue),
+          bbox: siblingBbox,
+        })
+        continue
+      }
+
       flattenValue(nestedValue, [...pathSegments, key], fields)
     }
     return
@@ -106,6 +189,7 @@ function flattenValue(
     keyPath,
     label: keyPath,
     value: String(value),
+    bbox: null,
   })
 }
 
